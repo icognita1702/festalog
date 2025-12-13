@@ -294,6 +294,8 @@ export default function PedidoDetalhesPage() {
             drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, correspondente ao evento do LOCATÁRIO, até o recolhimento no dia seguinte.`, 10)
             y -= 5
             drawWrappedText(`3.2. O material será entregue no endereço do evento, localizado em: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            y -= 10
+            page.drawText('IMPORTANTE: NÃO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
             y -= 15
 
             // ===== CLÁUSULA 4: VALOR E PAGAMENTO =====
@@ -354,14 +356,22 @@ export default function PedidoDetalhesPage() {
             checkNewPage()
             page.drawText('Cláusula 8ª: Responsabilidade por Danos e Quebras', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            drawWrappedText('8.1. O LOCATÁRIO será responsável por quaisquer danos ou quebras nos materiais locados. Em caso de danos aos itens, serão aplicados valores de reposição conforme avaliação conjunta no momento da entrega/devolução.', 10)
+            drawWrappedText('8.1. O LOCATÁRIO será responsável por quaisquer danos ou quebras nos materiais locados. Em caso de danos aos itens, serão aplicados os seguintes valores de reposição por unidade:', 10)
+            y -= 10
+            page.drawText('- Mesa: R$ 80,00 (oitenta reais)', { x: margin + 20, y, size: 9, font })
+            y -= 12
+            page.drawText('- Cadeira: R$ 60,00 (sessenta reais)', { x: margin + 20, y, size: 9, font })
+            y -= 12
+            page.drawText('- Toalhas: R$ 30,00 (trinta reais)', { x: margin + 20, y, size: 9, font })
+            y -= 12
+            page.drawText('- Isopor Térmico 100L: R$ 120,00 (cento e vinte reais)', { x: margin + 20, y, size: 9, font })
             y -= 15
 
             // ===== CLÁUSULA 9: LIMPEZA =====
             checkNewPage()
-            page.drawText('Cláusula 9ª: Cuidados com os Materiais e Limpeza', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 9ª: Cuidados com a Mesa/Cadeiras, Toalhas e Serviço de Limpeza', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            drawWrappedText('9.1. O LOCATÁRIO deverá zelar pela limpeza e conservação dos materiais locados. Em caso de derramamento de produtos, alimentos ou qualquer substância que possa danificar ou manchar significativamente os itens, o LOCATÁRIO será responsável por sua reposição. A empresa LOCADORA realizará a limpeza regular dos itens.', 10)
+            drawWrappedText('9.1. O LOCATÁRIO deverá zelar pela limpeza e conservação da mesa, cadeira, isopor ou toalha locada. Em caso de derramamento de produtos, alimentos ou qualquer outra substância que possa danificar ou manchar significativamente a mesa, cadeira ou toalha, o LOCATÁRIO será responsável por sua reposição. Entretanto, esclarecemos que a empresa LOCADORA realizará a limpeza regular dos itens, assegurando que estejam em condições ideais para uso durante a locação. Recomenda-se que, em caso de manchas permanentes significativas, o LOCATÁRIO comunique imediatamente o LOCADOR para avaliação e providências adequadas.', 10)
             y -= 15
 
             // ===== CLÁUSULA 10: HORÁRIO =====
@@ -576,6 +586,8 @@ export default function PedidoDetalhesPage() {
             drawWrappedText(`3.1. A locacao tera duracao de 1 (um) dia, compreendendo o periodo de utilizacao dos itens a partir do dia ${dataEvento}.`, 10)
             y -= 5
             drawWrappedText(`3.2. O material sera entregue no endereco: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            y -= 10
+            page.drawText('IMPORTANTE: NAO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
             y -= 15
 
             // CLÁUSULA 4
@@ -591,15 +603,15 @@ export default function PedidoDetalhesPage() {
             page.drawText('CHAVE PIX CNPJ: 46.446.131/0001-06 | GABRIEL LUCAS | BANCO: CORA SCD', { x: margin, y, size: 9, font })
             y -= 20
 
-            // CLÁUSULAS 5-12 (resumidas)
+            // CLÁUSULAS 5-12
             const clausulas = [
-                { t: 'Clausula 5: Rescisao Contratual', c: '5.1. Caso nao ocorra o pagamento na data da entrega, este contrato sera automaticamente rescindido. Reservas antecipadas exigem aviso previo de uma semana.' },
+                { t: 'Clausula 5: Rescisao Contratual', c: '5.1. Caso nao ocorra o pagamento na data da entrega, este contrato sera automaticamente rescindido.' },
                 { t: 'Clausula 6: Devolucao dos Bens', c: '6.1. Os bens deverao ser devolvidos nas mesmas condicoes de conservacao em que foram recebidos.' },
                 { t: 'Clausula 7: Multa por Atraso', c: '7.1. Multa de R$ 30,00 por dia de atraso na devolucao.' },
-                { t: 'Clausula 8: Responsabilidade por Danos', c: '8.1. O LOCATARIO sera responsavel por quaisquer danos ou quebras nos materiais locados.' },
-                { t: 'Clausula 9: Cuidados com os Materiais', c: '9.1. O LOCATARIO devera zelar pela limpeza e conservacao dos materiais locados.' },
-                { t: 'Clausula 10: Alteracao de Horario', c: '10.1. O LOCATARIO podera solicitar alteracao do horario com aviso previo de 3 horas.' },
-                { t: 'Clausula 11: Responsabilidade dos Sucessores', c: '11.1. Os herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
+                { t: 'Clausula 8: Responsabilidade por Danos', c: '8.1. Danos e quebras: Mesa R$80, Cadeira R$60, Toalhas R$30, Isopor 100L R$120.' },
+                { t: 'Clausula 9: Cuidados e Limpeza', c: '9.1. O LOCATARIO devera zelar pela limpeza e conservacao. Em caso de manchas permanentes, comunicar imediatamente.' },
+                { t: 'Clausula 10: Alteracao de Horario', c: '10.1. Alteracoes com aviso previo de 3 horas.' },
+                { t: 'Clausula 11: Responsabilidade dos Sucessores', c: '11.1. Herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
                 { t: 'Clausula 12: Foro Competente', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE - MG.' }
             ]
 
