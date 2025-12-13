@@ -207,62 +207,76 @@ export default function PedidoDetalhesPage() {
             }
 
             // ===== CABEÇALHO =====
-            page.drawText('CONTRATO DE LOCAÇÃO', {
-                x: 200,
+            page.drawText('CONTRATO DE LOCAÇÃO DE MATERIAIS PARA FESTAS', {
+                x: 120,
                 y,
-                size: 16,
+                size: 14,
                 font: fontBold,
                 color: rgb(0, 0, 0),
             })
-            y -= 30
+            y -= 25
 
-            // ===== IDENTIFICAÇÃO DAS PARTES =====
+            // ===== INTRODUÇÃO =====
+            drawWrappedText('Pelo presente instrumento particular de contrato de locação, de um lado, denominado LOCADOR:', 10)
+            y -= 10
+
             // LOCADOR
-            page.drawText('LOCADOR:', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            page.drawText(`Nome: ${nomeLoja}`, { x: margin, y, size: 10, font })
+            page.drawText(`${nomeLoja}`, { x: margin, y, size: 11, font: fontBold })
             y -= lineHeight
             page.drawText(`CNPJ: ${cnpjLoja}`, { x: margin, y, size: 10, font })
             y -= lineHeight
             page.drawText(`Endereço: ${enderecoLoja}`, { x: margin, y, size: 10, font })
-            y -= 25
+            y -= 20
 
             // LOCATÁRIO
-            page.drawText('LOCATÁRIO:', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            page.drawText(`Nome: ${pedido.clientes?.nome || ''}`, { x: margin, y, size: 10, font })
+            drawWrappedText('E, de outro lado, denominado LOCATÁRIO:', 10)
+            y -= 10
+            page.drawText(`${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 11, font: fontBold })
             y -= lineHeight
             page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'}`, { x: margin, y, size: 10, font })
             y -= lineHeight
-            page.drawText(`Telefone: ${pedido.clientes?.whatsapp || ''}`, { x: margin, y, size: 10, font })
-            y -= lineHeight
             page.drawText(`Endereço: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 10, font })
-            y -= 25
+            y -= 20
+
+            drawWrappedText('Têm entre si justo e acordado o que segue:', 10)
+            y -= 15
 
             // ===== CLÁUSULA 1: OBJETO =====
             checkNewPage()
             page.drawText('Cláusula 1ª: Objeto da Locação', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            page.drawText('1.1. O presente contrato tem como objeto a locação dos seguintes itens:', { x: margin, y, size: 10, font })
-            y -= lineHeight + 5
+            drawWrappedText('1.1. O presente contrato tem como objeto a locação dos seguintes itens:', 10)
+            y -= lineHeight
 
-            // Tabela de Itens
+            // TABELA DE ITENS COM VALORES
             page.drawText('Qtd', { x: margin, y, size: 9, font: fontBold })
-            page.drawText('Descrição', { x: 90, y, size: 9, font: fontBold })
+            page.drawText('Descrição', { x: 85, y, size: 9, font: fontBold })
+            page.drawText('Valor Unit.', { x: 350, y, size: 9, font: fontBold })
+            page.drawText('Subtotal', { x: 450, y, size: 9, font: fontBold })
             y -= 5
             page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
             y -= 15
 
+            let subtotalItens = 0
             pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
                 checkNewPage()
+                const subtotalItem = item.quantidade * item.preco_unitario
+                subtotalItens += subtotalItem
                 page.drawText(item.quantidade.toString(), { x: margin, y, size: 9, font })
-                page.drawText(item.produtos?.nome || '', { x: 90, y, size: 9, font })
+                page.drawText(item.produtos?.nome || '', { x: 85, y, size: 9, font })
+                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario), { x: 350, y, size: 9, font })
+                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotalItem), { x: 450, y, size: 9, font })
                 y -= 15
             })
-            y -= 5
+
+            page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
+            y -= 15
+            page.drawText('TOTAL:', { x: 350, y, size: 10, font: fontBold })
+            page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido), { x: 450, y, size: 10, font: fontBold })
+            y -= 15
 
             checkNewPage()
-            drawWrappedText('Todos os itens encontram-se em bom estado de conservação e limpeza, sendo de propriedade do LOCADOR e destinados à locação ao LOCATÁRIO.', 10)
+            drawWrappedText('1.2. Todos os itens encontram-se em bom estado de conservação e limpeza, sendo de propriedade do LOCADOR e destinados à locação ao LOCATÁRIO.', 10)
             y -= 15
 
             // ===== CLÁUSULA 2: TRANSFERÊNCIA =====
@@ -277,10 +291,9 @@ export default function PedidoDetalhesPage() {
             page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
-            // Assumindo devolução no dia seguinte para simplificar
-            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, correspondente ao evento do LOCATÁRIO.`, 10)
+            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, correspondente ao evento do LOCATÁRIO, até o recolhimento no dia seguinte.`, 10)
             y -= 5
-            drawWrappedText(`3.2. O material será entregue no endereço do evento: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            drawWrappedText(`3.2. O material será entregue no endereço do evento, localizado em: ${pedido.clientes?.endereco_completo || ''}.`, 10)
             y -= 15
 
             // ===== CLÁUSULA 4: VALOR E PAGAMENTO =====
@@ -288,76 +301,129 @@ export default function PedidoDetalhesPage() {
             page.drawText('Cláusula 4ª: Valor do Aluguel e Forma de Pagamento', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
-            drawWrappedText(`4.1. O valor total da locação, incluindo o frete, será de ${valorTotal}.`, 10)
+            const valorExtenso = valorTotal // Simplificado
+            const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
+
+            drawWrappedText(`4.1. O valor do material alugado será de ${valorTotal}.`, 10)
             y -= 5
-            drawWrappedText('4.2. Forma de Pagamento:', 10, true)
+            drawWrappedText('4.2. Adicionalmente, será cobrado o valor do frete conforme região de entrega.', 10)
             y -= 5
-            drawWrappedText('Para pessoas físicas ou empresas sem necessidade de NFS-e: Sinal de 50% no ato da reserva e o restante no ato da entrega.', 10)
+            drawWrappedText(`4.3. O valor total da locação, incluindo o frete, será de ${valorTotal}.`, 10)
             y -= 5
-            drawWrappedText('Para empresas com necessidade de NFS-e: Pagamento no ato da entrega, após emissão e aprovação da NFS-e.', 10)
+            drawWrappedText(`4.4. Para pessoas físicas ou empresas que não necessitam de nota fiscal de serviço (NFS-e), o LOCATÁRIO deverá efetuar um sinal de 50% do valor total, equivalente a ${valorSinal}. O restante do pagamento deverá ser feito no ato da entrega dos itens ao cliente.`, 10)
             y -= 5
-            drawWrappedText('4.3. Dados para pagamento via PIX:', 10, true)
-            y -= 5
-            page.drawText('CHAVE PIX CNPJ: 46.446.131/0001-06', { x: margin + 10, y, size: 10, font })
+            drawWrappedText('4.4.1. Para empresas que necessitam de nota fiscal de serviço (NFS-e), o pagamento será efetuado no dia da entrega, após emissão e aprovação da análise fiscal.', 10)
+            y -= 10
+
+            checkNewPage()
+            page.drawText('4.5. Dados para pagamento via PIX:', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            page.drawText('NOME: GABRIEL LUCAS', { x: margin + 10, y, size: 10, font })
+            page.drawText('CHAVE PIX CNPJ: 46.446.131/0001-06', { x: margin + 20, y, size: 10, font })
             y -= lineHeight
-            page.drawText('BANCO: CORA SCD', { x: margin + 10, y, size: 10, font })
+            page.drawText('NOME: GABRIEL LUCAS', { x: margin + 20, y, size: 10, font })
+            y -= lineHeight
+            page.drawText('BANCO: CORA SCD', { x: margin + 20, y, size: 10, font })
+            y -= 20
+
+            // ===== CLÁUSULA 5: RESCISÃO =====
+            checkNewPage()
+            page.drawText('Cláusula 5ª: Pagamento e Rescisão Contratual', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('5.1. Caso não ocorra o pagamento na data da entrega, este contrato será automaticamente rescindido.', 10)
+            y -= 5
+            drawWrappedText('5.2. Em casos de reserva antecipada, o LOCATÁRIO poderá rescindir o contrato sem incorrer em multa, desde que o faça com, no mínimo, uma semana de antecedência em relação à data do evento.', 10)
+            y -= 5
+            drawWrappedText('5.3. No caso de desistência após os prazos mencionados, o valor referente ao pagamento antecipado não será devolvido e será considerado como multa pela rescisão do contrato.', 10)
             y -= 15
 
-            // ===== CLÁUSULAS 5 a 12 =====
-            const clausulasExtras = [
-                { t: 'Cláusula 5ª: Pagamento e Rescisão Contratual', c: '5.1. Em caso de rescisão sem pagamento na data da entrega, o contrato será automaticamente rescindido. Reservas antecipadas exigem aviso prévio de uma semana para empresas ou 7 dias para outros. Pagamentos antecipados não serão devolvidos em caso de desistência após prazos.' },
-                { t: 'Cláusula 6ª: Devolução dos Bens', c: '6.1. Os bens devem ser devolvidos nas mesmas condições. Danos serão avaliados na entrega/devolução.' },
-                { t: 'Cláusula 7ª: Multa por Atraso', c: '7.1. Multa de R$ 30,00 (trinta reais) por dia de atraso na devolução.' },
-                { t: 'Cláusula 8ª: Responsabilidade por Danos', c: '8.1. O LOCATÁRIO é responsável por quaisquer danos ou quebras. Valores de reposição serão aplicados.' },
-                { t: 'Cláusula 9ª: Cuidados e Limpeza', c: '9.1. O LOCATÁRIO deve zelar pela limpeza. A LOCADORA fará a limpeza regular, mas manchas permanentes são responsabilidade do LOCATÁRIO.' },
-                { t: 'Cláusula 10ª: Alteração de Horário', c: '10.1. Alterações de horário exigem aviso prévio de 3 horas e estão sujeitas à disponibilidade.' },
-                { t: 'Cláusula 11ª: Sucessores', c: '11.1. Herdeiros e sucessores se obrigam ao teor deste contrato.' },
-                { t: 'Cláusula 12ª: Foro', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE – MG.' }
-            ]
-
-            clausulasExtras.forEach(cl => {
-                checkNewPage()
-                page.drawText(cl.t, { x: margin, y, size: 10, font: fontBold })
-                y -= lineHeight
-                drawWrappedText(cl.c, 10)
-                y -= 10
-            })
-
-            y -= 10
+            // ===== CLÁUSULA 6: DEVOLUÇÃO =====
             checkNewPage()
-
-            // ===== DECLARAÇÃO =====
-            page.drawText('DECLARAÇÃO:', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 6ª: Devolução dos Bens', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            drawWrappedText('Declaro estar ciente e de acordo com todas as cláusulas e condições estabelecidas neste contrato, comprometendo-me a cumpri-las integralmente.', 10)
-            y -= 30
+            drawWrappedText('6.1. Ao final da locação, os bens deverão ser devolvidos pelo LOCATÁRIO nas mesmas condições de conservação em que foram recebidos, considerando desgastes normais aceitáveis. Danos significativos serão avaliados e, em caso de discordância, uma inspeção conjunta no momento da entrega/devolução será realizada.', 10)
+            y -= 15
 
-            // ===== ASSINATURAS =====
-            checkNewPage(120) // Garantir espaço para assinaturas
+            // ===== CLÁUSULA 7: MULTA =====
+            checkNewPage()
+            page.drawText('Cláusula 7ª: Multa por Atraso na Devolução', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('7.1. Caso o prazo para devolução dos bens não seja respeitado, o LOCATÁRIO incorrerá em multa de R$ 30,00 (trinta reais) por dia de atraso.', 10)
+            y -= 15
+
+            // ===== CLÁUSULA 8: DANOS =====
+            checkNewPage()
+            page.drawText('Cláusula 8ª: Responsabilidade por Danos e Quebras', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('8.1. O LOCATÁRIO será responsável por quaisquer danos ou quebras nos materiais locados. Em caso de danos aos itens, serão aplicados valores de reposição conforme avaliação conjunta no momento da entrega/devolução.', 10)
+            y -= 15
+
+            // ===== CLÁUSULA 9: LIMPEZA =====
+            checkNewPage()
+            page.drawText('Cláusula 9ª: Cuidados com os Materiais e Limpeza', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('9.1. O LOCATÁRIO deverá zelar pela limpeza e conservação dos materiais locados. Em caso de derramamento de produtos, alimentos ou qualquer substância que possa danificar ou manchar significativamente os itens, o LOCATÁRIO será responsável por sua reposição. A empresa LOCADORA realizará a limpeza regular dos itens.', 10)
+            y -= 15
+
+            // ===== CLÁUSULA 10: HORÁRIO =====
+            checkNewPage()
+            page.drawText('Cláusula 10ª: Alteração do Horário do Evento', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('10.1. O LOCATÁRIO poderá solicitar a alteração do horário do evento com um aviso prévio de no máximo 3 (três) horas para frente ou para trás. Qualquer alteração além desse período estará sujeita à disponibilidade e aprovação do LOCADOR.', 10)
+            y -= 15
+
+            // ===== CLÁUSULA 11: SUCESSORES =====
+            checkNewPage()
+            page.drawText('Cláusula 11ª: Responsabilidade dos Herdeiros e Sucessores', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('11.1. Os herdeiros e sucessores das partes contratantes se obrigam desde já ao inteiro teor deste contrato.', 10)
+            y -= 15
+
+            // ===== CLÁUSULA 12: FORO =====
+            checkNewPage()
+            page.drawText('Cláusula 12ª: Foro Competente', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('12.1. Para dirimir quaisquer controvérsias oriundas deste contrato, as partes elegem o foro da comarca de BELO HORIZONTE – MG.', 10)
+            y -= 20
+
+            // ===== DECLARAÇÃO FINAL =====
+            checkNewPage(80)
+            drawWrappedText('Por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor.', 10)
+            y -= 20
 
             page.drawText(`Belo Horizonte, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, {
                 x: margin, y, size: 10, font
             })
-            y -= 50
+            y -= 40
 
+            // ===== ASSINATURAS =====
+            checkNewPage(100)
+
+            // Linha do Locador
             page.drawLine({ start: { x: margin, y }, end: { x: 250, y }, thickness: 0.5 })
+            // Linha do Locatário
             page.drawLine({ start: { x: 300, y }, end: { x: 545, y }, thickness: 0.5 })
             y -= 15
 
             // Locador
-            page.drawText('LOCADOR', { x: margin, y, size: 9, font: fontBold })
-            y -= 10
-            page.drawText('GABRIEL L. S. SOUZA', { x: margin, y, size: 8, font })
+            page.drawText('LOCADOR:', { x: margin, y, size: 9, font: fontBold })
+            y -= 12
+            page.drawText('GABRIEL L. S. SOUZA', { x: margin, y, size: 9, font })
             y -= 10
             page.drawText('CNPJ: 46.446.131/0001-06', { x: margin, y, size: 8, font })
+            y -= 10
+            page.drawText('End: Rua Ariramba, 121 - Alípio de Melo, BH/MG', { x: margin, y, size: 8, font })
 
             // Locatário
-            y += 20 // volta para linha da assinatura
-            page.drawText('LOCATÁRIO', { x: 300, y, size: 9, font: fontBold })
-            y -= 10
-            drawWrappedText(pedido.clientes?.nome?.toUpperCase() || '', 8)
+            let yLoc = y + 32
+            page.drawText('LOCATÁRIO:', { x: 300, y: yLoc, size: 9, font: fontBold })
+            yLoc -= 12
+            page.drawText(pedido.clientes?.nome?.toUpperCase() || '', { x: 300, y: yLoc, size: 9, font })
+            yLoc -= 10
+            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'}`, { x: 300, y: yLoc, size: 8, font })
+            yLoc -= 10
+            // Truncar endereço se muito longo
+            const endLocatario = (pedido.clientes?.endereco_completo || '').substring(0, 40)
+            page.drawText(`End: ${endLocatario}`, { x: 300, y: yLoc, size: 8, font })
 
             // Download
             const pdfBytes = await pdfDoc.save()
@@ -381,6 +447,40 @@ export default function PedidoDetalhesPage() {
         if (!pedido) return
         const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
         const message = encodeURIComponent(`Olá ${pedido.clientes?.nome}! Aqui é da locadora.`)
+        window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+    }
+
+    function enviarContratoWhatsApp() {
+        if (!pedido) return
+        const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
+        const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
+        const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
+        const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
+
+        // Gerar lista de itens
+        const itens = pedido.itens_pedido?.map((item: ItemPedidoComProduto) =>
+            `• ${item.quantidade}x ${item.produtos?.nome}`
+        ).join('\n') || ''
+
+        const linkContrato = `${window.location.origin}/contrato/${pedido.id}`
+
+        const message = encodeURIComponent(
+            `📋 *CONTRATO DE LOCAÇÃO - LU FESTAS*\n\n` +
+            `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
+            `Segue o resumo do seu pedido:\n\n` +
+            `📅 *Data do Evento:* ${dataEvento}\n` +
+            `📍 *Local:* ${pedido.clientes?.endereco_completo}\n\n` +
+            `*Itens Locados:*\n${itens}\n\n` +
+            `💰 *Valor Total:* ${valorTotal}\n` +
+            `💳 *Sinal (50%):* ${valorSinal}\n\n` +
+            `📝 *Para assinar o contrato online, acesse:*\n${linkContrato}\n\n` +
+            `*Forma de Pagamento via PIX:*\n` +
+            `Chave CNPJ: 46.446.131/0001-06\n` +
+            `Nome: GABRIEL LUCAS\n` +
+            `Banco: CORA SCD\n\n` +
+            `Qualquer dúvida, estamos à disposição! 🙏\n` +
+            `*Lu Festas* 🎉`
+        )
         window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
     }
 
@@ -421,10 +521,14 @@ export default function PedidoDetalhesPage() {
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" onClick={openWhatsApp}>
                         <Send className="mr-2 h-4 w-4" />
                         WhatsApp
+                    </Button>
+                    <Button variant="secondary" onClick={enviarContratoWhatsApp}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Enviar Contrato
                     </Button>
                     <Button onClick={gerarContratoPDF} disabled={gerando}>
                         {gerando ? (
@@ -432,7 +536,7 @@ export default function PedidoDetalhesPage() {
                         ) : (
                             <Download className="mr-2 h-4 w-4" />
                         )}
-                        Gerar Contrato PDF
+                        Gerar PDF
                     </Button>
                 </div>
             </div>
