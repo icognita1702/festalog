@@ -11,7 +11,8 @@ import {
     MapPin,
     MessageCircle,
     Settings,
-    PartyPopper
+    PartyPopper,
+    Smartphone
 } from 'lucide-react'
 
 const menuItems = [
@@ -44,6 +45,11 @@ const menuItems = [
         title: 'WhatsApp',
         href: '/whatsapp',
         icon: MessageCircle
+    },
+    {
+        title: 'Conexão Bot',
+        href: '/conexao',
+        icon: Smartphone
     },
 ]
 
