@@ -550,27 +550,31 @@ export default function PedidoDetalhesPage() {
                 .upload(fileName, pdfBytes, { contentType: 'application/pdf', upsert: true })
 
             let pdfUrl = ''
-            if (!uploadError) {
+            if (uploadError) {
+                console.error('Erro no upload:', uploadError)
+                alert('Aviso: Erro ao fazer upload do PDF. Mensagem será enviada sem o link.')
+            } else {
                 const { data: urlData } = supabase.storage.from('contratos').getPublicUrl(fileName)
                 pdfUrl = urlData?.publicUrl || ''
+                console.log('PDF URL:', pdfUrl)
             }
 
             // Enviar via WhatsApp
             const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
-            const linkOnline = `${window.location.origin}/contrato/${pedido.id}`
 
             const message = encodeURIComponent(
-                `📋 *CONTRATO - LU FESTAS*\n\n` +
-                `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
-                `Seu contrato está pronto.\n\n` +
-                (pdfUrl ? `� *Baixar PDF:*\n${pdfUrl}\n\n` : '') +
-                `✍️ *Assinar online:*\n${linkOnline}\n\n` +
-                `📅 Data: ${dataEvento}\n` +
-                `💰 Total: ${valorTotal}\n` +
-                `💳 Sinal: ${valorSinal}\n\n` +
-                `PIX: 46.446.131/0001-06\n` +
-                `GABRIEL LUCAS | CORA\n\n` +
-                `*Lu Festas* 🎉`
+                `*CONTRATO - LU FESTAS*\n\n` +
+                `Olá *${pedido.clientes?.nome}*!\n\n` +
+                `Seu contrato está pronto para assinatura.\n\n` +
+                (pdfUrl ? `*BAIXAR CONTRATO:*\n${pdfUrl}\n\n` : '*Erro ao gerar link do contrato*\n\n') +
+                `Data do Evento: ${dataEvento}\n` +
+                `Valor Total: ${valorTotal}\n` +
+                `Sinal (50%): ${valorSinal}\n\n` +
+                `*PIX para pagamento:*\n` +
+                `Chave CNPJ: 46.446.131/0001-06\n` +
+                `Nome: GABRIEL LUCAS\n` +
+                `Banco: CORA SCD\n\n` +
+                `Lu Festas`
             )
             window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
 
