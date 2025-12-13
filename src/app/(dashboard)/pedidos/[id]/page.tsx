@@ -510,9 +510,9 @@ export default function PedidoDetalhesPage() {
             }
 
             // CABEÇALHO
-            page.drawText('CONTRATO DE LOCACAO DE MATERIAIS PARA FESTAS', { x: 120, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
+            page.drawText('CONTRATO DE LOCAÇÃO DE MATERIAIS PARA FESTAS', { x: 120, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
             y -= 25
-            drawWrappedText('Pelo presente instrumento particular de contrato de locacao, de um lado, denominado LOCADOR:', 10)
+            drawWrappedText('Pelo presente instrumento particular de contrato de locação, de um lado, denominado LOCADOR:', 10)
             y -= 10
 
             // LOCADOR
@@ -520,31 +520,31 @@ export default function PedidoDetalhesPage() {
             y -= lineHeight
             page.drawText(`CNPJ: ${cnpjLoja}`, { x: margin, y, size: 10, font })
             y -= lineHeight
-            page.drawText(`Endereco: ${enderecoLoja}`, { x: margin, y, size: 10, font })
+            page.drawText(`Endereço: ${enderecoLoja}`, { x: margin, y, size: 10, font })
             y -= 20
 
             // LOCATÁRIO
-            drawWrappedText('E, de outro lado, denominado LOCATARIO:', 10)
+            drawWrappedText('E, de outro lado, denominado LOCATÁRIO:', 10)
             y -= 10
             page.drawText(`${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 11, font: fontBold })
             y -= lineHeight
-            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Nao informado'}`, { x: margin, y, size: 10, font })
+            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'}`, { x: margin, y, size: 10, font })
             y -= lineHeight
-            page.drawText(`Endereco: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 10, font })
+            page.drawText(`Endereço: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 10, font })
             y -= 20
-            drawWrappedText('Tem entre si justo e acordado o que segue:', 10)
+            drawWrappedText('Têm entre si justo e acordado o que segue:', 10)
             y -= 15
 
             // CLÁUSULA 1
             checkNewPage()
-            page.drawText('Clausula 1: Objeto da Locacao', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 1ª: Objeto da Locação', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            drawWrappedText('1.1. O presente contrato tem como objeto a locacao dos seguintes itens:', 10)
+            drawWrappedText('1.1. O presente contrato tem como objeto a locação dos seguintes itens:', 10)
             y -= lineHeight
 
             // Tabela de itens
             page.drawText('Qtd', { x: margin, y, size: 9, font: fontBold })
-            page.drawText('Descricao', { x: 85, y, size: 9, font: fontBold })
+            page.drawText('Descrição', { x: 85, y, size: 9, font: fontBold })
             page.drawText('Valor Unit.', { x: 350, y, size: 9, font: fontBold })
             page.drawText('Subtotal', { x: 450, y, size: 9, font: fontBold })
             y -= 5
@@ -568,35 +568,35 @@ export default function PedidoDetalhesPage() {
             y -= 15
 
             checkNewPage()
-            drawWrappedText('1.2. Todos os itens encontram-se em bom estado de conservacao e limpeza.', 10)
+            drawWrappedText('1.2. Todos os itens encontram-se em bom estado de conservação e limpeza.', 10)
             y -= 15
 
             // CLÁUSULA 2
             checkNewPage()
-            page.drawText('Clausula 2: Proibicao de Transferencia', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 2ª: Proibição de Transferência', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            drawWrappedText('2.1. Fica expressamente proibido ao LOCATARIO transferir, sub-locar, ceder ou emprestar os bens objeto deste contrato a terceiros.', 10)
+            drawWrappedText('2.1. Fica expressamente proibido ao LOCATÁRIO transferir, sub-locar, ceder ou emprestar os bens objeto deste contrato a terceiros.', 10)
             y -= 15
 
             // CLÁUSULA 3
             checkNewPage()
-            page.drawText('Clausula 3: Duracao da Locacao e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
-            drawWrappedText(`3.1. A locacao tera duracao de 1 (um) dia, compreendendo o periodo de utilizacao dos itens a partir do dia ${dataEvento}.`, 10)
+            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}.`, 10)
             y -= 5
-            drawWrappedText(`3.2. O material sera entregue no endereco: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            drawWrappedText(`3.2. O material será entregue no endereço: ${pedido.clientes?.endereco_completo || ''}.`, 10)
             y -= 10
-            page.drawText('IMPORTANTE: NAO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
+            page.drawText('IMPORTANTE: NÃO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
             y -= 15
 
             // CLÁUSULA 4
             checkNewPage()
-            page.drawText('Clausula 4: Valor do Aluguel e Forma de Pagamento', { x: margin, y, size: 10, font: fontBold })
+            page.drawText('Cláusula 4ª: Valor do Aluguel e Forma de Pagamento', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
             const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
-            drawWrappedText(`4.1. O valor do material alugado sera de ${valorTotal}. Sinal de 50%: ${valorSinal}.`, 10)
+            drawWrappedText(`4.1. O valor do material alugado será de ${valorTotal}. Sinal de 50%: ${valorSinal}.`, 10)
             y -= 10
             page.drawText('Dados para pagamento via PIX:', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
@@ -605,14 +605,14 @@ export default function PedidoDetalhesPage() {
 
             // CLÁUSULAS 5-12
             const clausulas = [
-                { t: 'Clausula 5: Rescisao Contratual', c: '5.1. Caso nao ocorra o pagamento na data da entrega, este contrato sera automaticamente rescindido.' },
-                { t: 'Clausula 6: Devolucao dos Bens', c: '6.1. Os bens deverao ser devolvidos nas mesmas condicoes de conservacao em que foram recebidos.' },
-                { t: 'Clausula 7: Multa por Atraso', c: '7.1. Multa de R$ 30,00 por dia de atraso na devolucao.' },
-                { t: 'Clausula 8: Responsabilidade por Danos', c: '8.1. Danos e quebras: Mesa R$80, Cadeira R$60, Toalhas R$30, Isopor 100L R$120.' },
-                { t: 'Clausula 9: Cuidados e Limpeza', c: '9.1. O LOCATARIO devera zelar pela limpeza e conservacao. Em caso de manchas permanentes, comunicar imediatamente.' },
-                { t: 'Clausula 10: Alteracao de Horario', c: '10.1. Alteracoes com aviso previo de 3 horas.' },
-                { t: 'Clausula 11: Responsabilidade dos Sucessores', c: '11.1. Herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
-                { t: 'Clausula 12: Foro Competente', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE - MG.' }
+                { t: 'Cláusula 5ª: Rescisão Contratual', c: '5.1. Caso não ocorra o pagamento na data da entrega, este contrato será automaticamente rescindido.' },
+                { t: 'Cláusula 6ª: Devolução dos Bens', c: '6.1. Os bens deverão ser devolvidos nas mesmas condições de conservação em que foram recebidos.' },
+                { t: 'Cláusula 7ª: Multa por Atraso', c: '7.1. Multa de R$ 30,00 por dia de atraso na devolução.' },
+                { t: 'Cláusula 8ª: Responsabilidade por Danos', c: '8.1. Danos e quebras: Mesa R$80, Cadeira R$60, Toalhas R$30, Isopor 100L R$120.' },
+                { t: 'Cláusula 9ª: Cuidados e Limpeza', c: '9.1. O LOCATÁRIO deverá zelar pela limpeza e conservação. Em caso de manchas permanentes, comunicar imediatamente.' },
+                { t: 'Cláusula 10ª: Alteração de Horário', c: '10.1. Alterações com aviso prévio de 3 horas.' },
+                { t: 'Cláusula 11ª: Responsabilidade dos Sucessores', c: '11.1. Herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
+                { t: 'Cláusula 12ª: Foro Competente', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE - MG.' }
             ]
 
             clausulas.forEach(cl => {
