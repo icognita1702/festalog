@@ -33,114 +33,135 @@ import type { PedidoComCliente } from '@/lib/database.types'
 
 type TemplateType = 'orcamento' | 'contrato' | 'cobranca' | 'entrega' | 'recolhimento' | 'avaliacao'
 
+// Emojis como constantes para garantir encoding correto
+const EMOJI = {
+    wave: '\u{1F44B}',
+    calendar: '\u{1F4C5}',
+    money: '\u{1F4B0}',
+    card: '\u{1F4B3}',
+    memo: '\u{1F4DD}',
+    check: '\u{2705}',
+    party: '\u{1F389}',
+    bank: '\u{1F3E6}',
+    truck: '\u{1F69A}',
+    pin: '\u{1F4CD}',
+    clock: '\u{23F0}',
+    phone: '\u{1F4F2}',
+    star: '\u{2B50}',
+    sparkles: '\u{2728}',
+    heart: '\u{1F499}',
+    package: '\u{1F4E6}',
+}
+
 const templates: Record<TemplateType, { titulo: string; icone: React.ReactNode; mensagem: string }> = {
     orcamento: {
-        titulo: 'Confirmar Orçamento',
+        titulo: 'Confirmar Orcamento',
         icone: <FileText className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 👋
+        mensagem: `Ola {nome}! ${EMOJI.wave}
 
-Tudo bem? Aqui é da *Lu Festas*.
+Tudo bem? Aqui e da *Lu Festas*.
 
-Segue o orçamento solicitado:
-📅 Data do evento: {data_evento}
-💰 Valor total: {total}
+Segue o orcamento solicitado:
+${EMOJI.calendar} Data do evento: {data_evento}
+${EMOJI.money} Valor total: {total}
 
-Deseja confirmar a locação? Assim podemos enviar o contrato! 📝`,
+Deseja confirmar a locacao? Assim podemos enviar o contrato! ${EMOJI.memo}`,
     },
     contrato: {
         titulo: 'Lembrete de Contrato',
         icone: <FileText className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 👋
+        mensagem: `Ola {nome}! ${EMOJI.wave}
 
-Aqui é da *Lu Festas*! 🎉
+Aqui e da *Lu Festas*! ${EMOJI.party}
 
 Passando para lembrar sobre o contrato do seu evento:
 
-📅 Data do evento: {data_evento}
-💰 Valor total: {total}
-💳 Sinal (50%): {valor_sinal}
+${EMOJI.calendar} Data do evento: {data_evento}
+${EMOJI.money} Valor total: {total}
+${EMOJI.card} Sinal (50%): {valor_sinal}
 
-Você já pode assinar o contrato e garantir sua reserva! 📝
+Voce ja pode assinar o contrato e garantir sua reserva! ${EMOJI.memo}
 
-Confirma que posso enviar o contrato para assinatura? ✅`,
+Confirma que posso enviar o contrato para assinatura? ${EMOJI.check}`,
     },
     cobranca: {
         titulo: 'Cobrar Sinal (50%)',
         icone: <DollarSign className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 👋
+        mensagem: `Ola {nome}! ${EMOJI.wave}
 
 Passando para lembrar sobre o sinal do seu pedido na *Lu Festas*:
 
-📅 Data do evento: {data_evento}
-💰 Valor do sinal (50%): {valor_sinal}
+${EMOJI.calendar} Data do evento: {data_evento}
+${EMOJI.money} Valor do sinal (50%): {valor_sinal}
 
-🏦 *Dados para pagamento:*
+${EMOJI.bank} *Dados para pagamento:*
 Chave PIX CNPJ: 46.446.131/0001-06
 Nome: GABRIEL LUCAS
 Banco: CORA SCD
 
-Após o pagamento, envie o comprovante por aqui! ✅`,
+Apos o pagamento, envie o comprovante por aqui! ${EMOJI.check}`,
     },
     entrega: {
         titulo: 'Aviso de Entrega',
         icone: <Truck className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 🚚
+        mensagem: `Ola {nome}! ${EMOJI.truck}
 
-Aqui é da *Lu Festas*! Estamos a caminho com sua entrega!
+Aqui e da *Lu Festas*! Estamos a caminho com sua entrega!
 
-📍 Endereço: {endereco}
-⏰ Previsão: Em breve!
+${EMOJI.pin} Endereco: {endereco}
+${EMOJI.clock} Previsao: Em breve!
 
-Por favor, certifique-se de que haverá alguém para receber.
+Por favor, certifique-se de que havera alguem para receber.
 
-Qualquer dúvida, é só chamar! 📲`,
+Qualquer duvida, e so chamar! ${EMOJI.phone}`,
     },
     recolhimento: {
         titulo: 'Agendamento de Recolhimento',
         icone: <Package className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 👋
+        mensagem: `Ola {nome}! ${EMOJI.wave}
 
-Aqui é da *Lu Festas*! Passando para confirmar o *recolhimento* dos materiais amanhã!
+Aqui e da *Lu Festas*! Passando para confirmar o *recolhimento* dos materiais amanha!
 
-📍 Endereço: {endereco}
-⏰ Horário previsto: Manhã
+${EMOJI.pin} Endereco: {endereco}
+${EMOJI.clock} Horario previsto: Manha
 
 Por favor, deixe os itens organizados para facilitar o recolhimento.
 
-Agradecemos a preferência! 🎉`,
+Agradecemos a preferencia! ${EMOJI.party}`,
     },
     avaliacao: {
-        titulo: 'Pedir Avaliação',
+        titulo: 'Pedir Avaliacao',
         icone: <Star className="h-5 w-5" />,
-        mensagem: `Olá {nome}! 🎉
+        mensagem: `Ola {nome}! ${EMOJI.party}
 
 Obrigado por escolher a *Lu Festas* para seu evento!
 
-Ficamos muito felizes em fazer parte desse momento especial. ✨
+Ficamos muito felizes em fazer parte desse momento especial. ${EMOJI.sparkles}
 
-Se você gostou do nosso serviço, nos ajude com uma avaliação de 5 estrelas:
-⭐ {link_google}
+Se voce gostou do nosso servico, nos ajude com uma avaliacao de 5 estrelas:
+${EMOJI.star} {link_google}
 
-Sua opinião é muito importante para nós! 💙`,
+Sua opiniao e muito importante para nos! ${EMOJI.heart}`,
     },
 }
+
+const linkGoogle = 'https://search.google.com/local/writereview?placeid=ChIJxwcjc99RpgARMzNtT0lyZTE'
 
 export default function WhatsAppPage() {
     const [pedidos, setPedidos] = useState<PedidoComCliente[]>([])
     const [loading, setLoading] = useState(true)
     const [pedidoSelecionado, setPedidoSelecionado] = useState<string>('')
-    const [templateSelecionado, setTemplateSelecionado] = useState<TemplateType>('orcamento')
+    const [templateSelecionado, setTemplateSelecionado] = useState<TemplateType | null>(null)
     const [mensagemFinal, setMensagemFinal] = useState('')
     const [copiado, setCopiado] = useState(false)
 
-    const linkGoogle = 'https://search.google.com/local/writereview?placeid=ChIJxwcjc99RpgARMzNtT0lyZTE'
-
     async function loadPedidos() {
-        setLoading(true)
         const { data, error } = await supabase
             .from('pedidos')
-            .select('*, clientes(*)')
-            .not('status', 'eq', 'finalizado')
+            .select(`
+                *,
+                clientes (*)
+            `)
             .order('data_evento', { ascending: true })
 
         if (error) {
@@ -199,27 +220,33 @@ export default function WhatsAppPage() {
             </div>
 
             <div className="grid gap-8 lg:grid-cols-2">
-                {/* Seleção */}
+                {/* Selecao */}
                 <div className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Selecionar Pedido</CardTitle>
-                            <CardDescription>Escolha o pedido para enviar mensagem</CardDescription>
+                            <CardTitle>Selecione o Pedido</CardTitle>
+                            <CardDescription>Escolha o cliente para enviar a mensagem</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent>
                             {loading ? (
-                                <div className="flex items-center justify-center py-4">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                 </div>
                             ) : (
                                 <Select value={pedidoSelecionado} onValueChange={setPedidoSelecionado}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Selecione um pedido" />
+                                        <SelectValue placeholder="Selecionar pedido..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {pedidos.map((p) => (
-                                            <SelectItem key={p.id} value={p.id}>
-                                                {p.clientes?.nome} - {new Date(p.data_evento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                        {pedidos.map((pedido) => (
+                                            <SelectItem key={pedido.id} value={pedido.id}>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium">{pedido.clientes?.nome}</span>
+                                                    <span className="text-muted-foreground">-</span>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        {new Date(pedido.data_evento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                                    </span>
+                                                </div>
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -227,15 +254,11 @@ export default function WhatsAppPage() {
                             )}
 
                             {pedido && (
-                                <div className="rounded-lg bg-muted p-4 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-medium">{pedido.clientes?.nome}</span>
-                                        <Badge>{pedido.status}</Badge>
+                                <div className="mt-4 rounded-lg bg-muted p-4">
+                                    <div className="flex items-center gap-3">
+                                        <Phone className="h-4 w-4 text-muted-foreground" />
+                                        <span className="font-medium">{pedido.clientes?.whatsapp}</span>
                                     </div>
-                                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                        <Phone className="h-3 w-3" />
-                                        {pedido.clientes?.whatsapp}
-                                    </p>
                                 </div>
                             )}
                         </CardContent>
@@ -330,21 +353,6 @@ export default function WhatsAppPage() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Dicas */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>💡 Dicas de Uso</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                        <li>As variáveis entre chaves <code>{'{nome}'}</code> são substituídas automaticamente</li>
-                        <li>Você pode editar a mensagem antes de enviar</li>
-                        <li>Use <code>*texto*</code> para negrito no WhatsApp</li>
-                        <li>Configure o link do Google Meu Negócio no código para o template de avaliação</li>
-                    </ul>
-                </CardContent>
-            </Card>
         </div>
     )
 }
