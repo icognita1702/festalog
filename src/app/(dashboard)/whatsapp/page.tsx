@@ -128,7 +128,7 @@ export default function WhatsAppPage() {
     const [mensagemFinal, setMensagemFinal] = useState('')
     const [copiado, setCopiado] = useState(false)
 
-    const linkGoogle = 'https://g.page/r/SUA_AVALIACAO_AQUI'
+    const linkGoogle = 'https://search.google.com/local/writereview?placeid=ChIJxwcjc99RpgARMzNtT0lyZTE'
 
     async function loadPedidos() {
         setLoading(true)
