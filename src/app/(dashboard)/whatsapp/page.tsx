@@ -287,6 +287,18 @@ export default function WhatsAppPage() {
                             />
                         </div>
 
+                        {/* Preview com emojis renderizados */}
+                        {mensagemFinal && (
+                            <div className="grid gap-2">
+                                <Label>Preview (como aparece no WhatsApp)</Label>
+                                <div className="rounded-lg bg-[#e5ded8] p-4 text-sm text-gray-800">
+                                    <div className="rounded-lg bg-white p-3 shadow-sm">
+                                        <EmojiText text={mensagemFinal} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex gap-3">
                             <Button
                                 variant="outline"
