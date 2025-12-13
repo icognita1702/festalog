@@ -450,38 +450,140 @@ export default function PedidoDetalhesPage() {
         window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
     }
 
-    function enviarContratoWhatsApp() {
+    async function enviarContratoWhatsApp() {
         if (!pedido) return
-        const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
-        const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
-        const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
-        const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
+        setGerando(true)
 
-        // Gerar lista de itens
-        const itens = pedido.itens_pedido?.map((item: ItemPedidoComProduto) =>
-            `• ${item.quantidade}x ${item.produtos?.nome}`
-        ).join('\n') || ''
+        try {
+            // Gerar o PDF compacto
+            const pdfDoc = await PDFDocument.create()
+            let page = pdfDoc.addPage([595, 842])
+            const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
-        const linkContrato = `${window.location.origin}/contrato/${pedido.id}`
+            const { height } = page.getSize()
+            let y = height - 50
+            const margin = 50
+            const lineHeight = 14
 
-        const message = encodeURIComponent(
-            `📋 *CONTRATO DE LOCAÇÃO - LU FESTAS*\n\n` +
-            `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
-            `Segue o resumo do seu pedido:\n\n` +
-            `📅 *Data do Evento:* ${dataEvento}\n` +
-            `📍 *Local:* ${pedido.clientes?.endereco_completo}\n\n` +
-            `*Itens Locados:*\n${itens}\n\n` +
-            `💰 *Valor Total:* ${valorTotal}\n` +
-            `💳 *Sinal (50%):* ${valorSinal}\n\n` +
-            `📝 *Para assinar o contrato online, acesse:*\n${linkContrato}\n\n` +
-            `*Forma de Pagamento via PIX:*\n` +
-            `Chave CNPJ: 46.446.131/0001-06\n` +
-            `Nome: GABRIEL LUCAS\n` +
-            `Banco: CORA SCD\n\n` +
-            `Qualquer dúvida, estamos à disposição! 🙏\n` +
-            `*Lu Festas* 🎉`
-        )
-        window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+            const checkNewPage = (neededSpace = 30) => {
+                if (y < 50 + neededSpace) {
+                    page = pdfDoc.addPage([595, 842])
+                    y = height - 50
+                }
+            }
+
+            const drawWrappedText = (text: string, size: number = 10) => {
+                const words = text.split(' ')
+                let line = ''
+                words.forEach(word => {
+                    const testLine = line + word + ' '
+                    if (font.widthOfTextAtSize(testLine, size) > 495) {
+                        checkNewPage(size + 2)
+                        page.drawText(line, { x: margin, y, size, font })
+                        y -= size + 4
+                        line = word + ' '
+                    } else {
+                        line = testLine
+                    }
+                })
+                if (line) {
+                    checkNewPage(size + 2)
+                    page.drawText(line, { x: margin, y, size, font })
+                    y -= size + 2
+                }
+            }
+
+            // Header
+            page.drawText('CONTRATO DE LOCAÇÃO - LU FESTAS', { x: 150, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
+            y -= 30
+
+            page.drawText('LOCADOR: LU FESTAS - CNPJ: 46.446.131/0001-06', { x: margin, y, size: 10, font: fontBold })
+            y -= 20
+            page.drawText(`LOCATÁRIO: ${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'} | End: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 9, font })
+            y -= 25
+
+            // Itens
+            page.drawText('ITENS LOCADOS:', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: 545, y: y + 5 }, thickness: 0.5 })
+            y -= 5
+
+            pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
+                checkNewPage()
+                const subtotal = item.quantidade * item.preco_unitario
+                page.drawText(`${item.quantidade}x ${item.produtos?.nome || ''} - ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}`, { x: margin, y, size: 9, font })
+                y -= 13
+            })
+
+            y -= 10
+            const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
+            const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
+            const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
+
+            page.drawText(`DATA DO EVENTO: ${dataEvento}`, { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            page.drawText(`VALOR TOTAL: ${valorTotal} | SINAL 50%: ${valorSinal}`, { x: margin, y, size: 10, font: fontBold })
+            y -= 25
+
+            page.drawText('PIX: 46.446.131/0001-06 | GABRIEL LUCAS | BANCO CORA', { x: margin, y, size: 10, font })
+            y -= 30
+
+            // Assinatura
+            checkNewPage(80)
+            page.drawText(`Belo Horizonte, ${format(new Date(), "dd/MM/yyyy")}`, { x: margin, y, size: 10, font })
+            y -= 30
+            page.drawLine({ start: { x: margin, y }, end: { x: 250, y }, thickness: 0.5 })
+            page.drawLine({ start: { x: 300, y }, end: { x: 545, y }, thickness: 0.5 })
+            y -= 15
+            page.drawText('LOCADOR', { x: margin, y, size: 9, font })
+            page.drawText('LOCATÁRIO (Assinatura)', { x: 300, y, size: 9, font })
+
+            const pdfBytes = await pdfDoc.save()
+
+            // Upload para Supabase Storage
+            const fileName = `contrato_${pedido.id.slice(0, 8)}_${Date.now()}.pdf`
+            const { error: uploadError } = await supabase.storage
+                .from('contratos')
+                .upload(fileName, pdfBytes, { contentType: 'application/pdf', upsert: true })
+
+            let pdfUrl = ''
+            if (!uploadError) {
+                const { data: urlData } = supabase.storage.from('contratos').getPublicUrl(fileName)
+                pdfUrl = urlData?.publicUrl || ''
+            }
+
+            // Enviar via WhatsApp
+            const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
+            const linkOnline = `${window.location.origin}/contrato/${pedido.id}`
+
+            const message = encodeURIComponent(
+                `📋 *CONTRATO - LU FESTAS*\n\n` +
+                `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
+                `Seu contrato está pronto.\n\n` +
+                (pdfUrl ? `� *Baixar PDF:*\n${pdfUrl}\n\n` : '') +
+                `✍️ *Assinar online:*\n${linkOnline}\n\n` +
+                `📅 Data: ${dataEvento}\n` +
+                `💰 Total: ${valorTotal}\n` +
+                `💳 Sinal: ${valorSinal}\n\n` +
+                `PIX: 46.446.131/0001-06\n` +
+                `GABRIEL LUCAS | CORA\n\n` +
+                `*Lu Festas* 🎉`
+            )
+            window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+
+            // Atualizar status
+            await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)
+            loadPedido()
+
+        } catch (error) {
+            console.error('Erro ao enviar contrato:', error)
+            alert('Erro ao enviar contrato.')
+        } finally {
+            setGerando(false)
+        }
     }
 
     if (loading) {
