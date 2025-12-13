@@ -118,7 +118,7 @@ export default function RotasPage() {
                 return
             }
 
-            // Chamar API de otimização
+            // Chamar API de otimização para ordenar entregas
             const response = await fetch('https://api.openrouteservice.org/optimization', {
                 method: 'POST',
                 headers: {
@@ -141,6 +141,7 @@ export default function RotasPage() {
             })
 
             const result = await response.json()
+            console.log('Resultado otimização:', result)
 
             if (result.routes && result.routes.length > 0) {
                 const route = result.routes[0]
@@ -157,11 +158,24 @@ export default function RotasPage() {
                 })
 
                 setEntregas(novaOrdem)
-                // Validar e converter valores
-                const durationSecs = route.duration || 0
-                const distanceMeters = route.distance || 0
-                setTempoTotal(durationSecs > 0 ? Math.round(durationSecs / 60) : 0)
-                setDistanciaTotal(distanceMeters > 0 ? Math.round(distanceMeters / 1000 * 10) / 10 : 0)
+
+                // Calcular tempo e distância somando os steps
+                let tempoTotalSecs = 0
+                let distanciaTotalMeters = 0
+
+                route.steps.forEach((step: { duration?: number; distance?: number }) => {
+                    tempoTotalSecs += step.duration || 0
+                    distanciaTotalMeters += step.distance || 0
+                })
+
+                // Converter: segundos para minutos, metros para km
+                const tempoMinutos = Math.round(tempoTotalSecs / 60)
+                const distanciaKm = Math.round(distanciaTotalMeters / 100) / 10
+
+                console.log(`Tempo total: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
+
+                setTempoTotal(tempoMinutos)
+                setDistanciaTotal(distanciaKm)
                 setRotaOtimizada(true)
             }
         } catch (error) {
