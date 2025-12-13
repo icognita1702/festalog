@@ -28,6 +28,7 @@ import {
     Package
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { EmojiText } from '@/components/ui/emoji-text'
 import type { PedidoComCliente } from '@/lib/database.types'
 
 type TemplateType = 'orcamento' | 'contrato' | 'cobranca' | 'entrega' | 'recolhimento' | 'avaliacao'
@@ -57,10 +58,11 @@ Passando para lembrar sobre o contrato do seu evento:
 
 📅 Data do evento: {data_evento}
 💰 Valor total: {total}
+💳 Sinal (50%): {valor_sinal}
 
-Para enviar o contrato com o link do PDF, use o botão *"Enviar Contrato"* na página do pedido.
+Você já pode assinar o contrato e garantir sua reserva! 📝
 
-Em caso de dúvidas, estamos à disposição! ✨`,
+Confirma que posso enviar o contrato para assinatura? ✅`,
     },
     cobranca: {
         titulo: 'Cobrar Sinal (50%)',
