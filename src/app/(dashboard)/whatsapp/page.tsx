@@ -71,8 +71,10 @@ Passando para lembrar sobre o sinal do seu pedido na *Lu Festas*:
 📅 Data do evento: {data_evento}
 💰 Valor do sinal (50%): {valor_sinal}
 
-*Dados para pagamento:*
-PIX: (seu pix aqui)
+🏦 *Dados para pagamento:*
+Chave PIX CNPJ: 46.446.131/0001-06
+Nome: GABRIEL LUCAS
+Banco: CORA SCD
 
 Após o pagamento, envie o comprovante por aqui! ✅`,
     },
