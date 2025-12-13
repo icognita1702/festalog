@@ -252,7 +252,7 @@ function PedidosContent() {
                                                         {statusLabels[pedido.status]}
                                                     </Badge>
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent position="popper" sideOffset={5}>
                                                     {allStatus.map((status) => (
                                                         <SelectItem key={status} value={status}>
                                                             <div className="flex items-center gap-2">
