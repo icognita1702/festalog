@@ -81,25 +81,38 @@ export default function RotasPage() {
         setOtimizando(true)
 
         try {
-            // Geocodificar endereços (usar API do OpenRouteService)
+            // Bounding box para região metropolitana de Belo Horizonte
+            // (limita busca para evitar resultados em outros estados)
+            const bhBounds = 'boundary.rect.min_lon=-44.15&boundary.rect.max_lon=-43.85&boundary.rect.min_lat=-20.05&boundary.rect.max_lat=-19.75'
+
+            // Geocodificar endereços dos clientes
             const coordenadas = await Promise.all(
                 entregas.map(async (entrega) => {
-                    const endereco = encodeURIComponent(entrega.pedido.clientes?.endereco_completo || '')
-                    const res = await fetch(
-                        `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${endereco}&boundary.country=BR`
-                    )
+                    const enderecoOriginal = entrega.pedido.clientes?.endereco_completo || ''
+                    // Adicionar "Belo Horizonte MG" se não tiver
+                    const endereco = enderecoOriginal.toLowerCase().includes('belo horizonte')
+                        ? enderecoOriginal
+                        : `${enderecoOriginal}, Belo Horizonte, MG`
+
+                    const url = `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${encodeURIComponent(endereco)}&boundary.country=BR&${bhBounds}&size=1`
+
+                    console.log('Geocoding:', endereco)
+                    const res = await fetch(url)
                     const data = await res.json()
+
                     if (data.features && data.features.length > 0) {
-                        return data.features[0].geometry.coordinates
+                        const coords = data.features[0].geometry.coordinates
+                        console.log('Resultado:', data.features[0].properties.label, '→', coords)
+                        return coords
                     }
+                    console.warn('Não encontrou:', endereco)
                     return null
                 })
             )
 
             // Geocodificar endereço da loja
-            const lojaRes = await fetch(
-                `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${encodeURIComponent(enderecoLoja)}&boundary.country=BR`
-            )
+            const lojaUrl = `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${encodeURIComponent(enderecoLoja)}&boundary.country=BR&${bhBounds}&size=1`
+            const lojaRes = await fetch(lojaUrl)
             const lojaData = await lojaRes.json()
             const lojaCoord = lojaData.features?.[0]?.geometry?.coordinates
 
@@ -108,6 +121,7 @@ export default function RotasPage() {
                 setOtimizando(false)
                 return
             }
+            console.log('Loja:', lojaData.features[0].properties.label, '→', lojaCoord)
 
             // Filtrar coordenadas válidas
             const coordsValidas = coordenadas.filter((c): c is number[] => c !== null)
