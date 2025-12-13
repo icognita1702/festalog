@@ -191,10 +191,12 @@ export default function RotasPage() {
 
     function abrirWhatsApp(whatsapp: string, nome: string, endereco: string) {
         const number = whatsapp.replace(/\D/g, '')
-        const message = encodeURIComponent(
-            `Olá ${nome}! Aqui é da locadora. Estamos a caminho para a entrega no endereço: ${endereco}. Aguarde nossa chegada! 🚚`
-        )
-        window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+        const message = `🚚 *Lu Festas - Entrega a caminho!*\n\n` +
+            `Olá ${nome}! 👋\n\n` +
+            `Estamos a caminho para a entrega!\n\n` +
+            `📍 Endereço: ${endereco}\n\n` +
+            `Por favor, aguarde nossa chegada! ✅`
+        window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
     }
 
     return (
