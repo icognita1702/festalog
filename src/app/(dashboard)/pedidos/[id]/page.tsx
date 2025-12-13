@@ -462,8 +462,8 @@ export default function PedidoDetalhesPage() {
     function openWhatsApp() {
         if (!pedido) return
         const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
-        const message = encodeURIComponent(`Olá ${pedido.clientes?.nome}! Aqui é da locadora.`)
-        window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+        const message = `👋 Olá ${pedido.clientes?.nome}!\n\nAqui é da *Lu Festas* 🎉\n\nComo posso ajudar?`
+        window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
     }
 
     async function enviarContratoWhatsApp() {

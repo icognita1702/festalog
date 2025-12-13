@@ -47,17 +47,18 @@ Segue o orçamento solicitado:
 Deseja confirmar a locação? Assim podemos enviar o contrato! 📝`,
     },
     contrato: {
-        titulo: 'Enviar Contrato',
+        titulo: 'Lembrete de Contrato',
         icone: <FileText className="h-5 w-5" />,
         mensagem: `Olá {nome}! 👋
 
-Seu contrato de locação da *Lu Festas* está pronto!
+Aqui é da *Lu Festas*! 🎉
+
+Passando para lembrar sobre o contrato do seu evento:
 
 📅 Data do evento: {data_evento}
 💰 Valor total: {total}
 
-Por favor, acesse o link abaixo para assinar digitalmente:
-🔗 {link_contrato}
+Para enviar o contrato com o link do PDF, use o botão *"Enviar Contrato"* na página do pedido.
 
 Em caso de dúvidas, estamos à disposição! ✨`,
     },
@@ -162,7 +163,6 @@ export default function WhatsAppPage() {
                 msg = msg.replace(/{total}/g, new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido))
                 msg = msg.replace(/{valor_sinal}/g, new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido / 2))
                 msg = msg.replace(/{endereco}/g, pedido.clientes?.endereco_completo || '')
-                msg = msg.replace(/{link_contrato}/g, `${window.location.origin}/contrato/${pedido.id}`)
                 msg = msg.replace(/{link_google}/g, linkGoogle)
                 setMensagemFinal(msg)
             }
