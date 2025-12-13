@@ -455,7 +455,7 @@ export default function PedidoDetalhesPage() {
         setGerando(true)
 
         try {
-            // Gerar o PDF compacto
+            // Gerar o PDF COMPLETO (mesmo código do gerarContratoPDF)
             const pdfDoc = await PDFDocument.create()
             let page = pdfDoc.addPage([595, 842])
             const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
@@ -466,6 +466,10 @@ export default function PedidoDetalhesPage() {
             const margin = 50
             const lineHeight = 14
 
+            const nomeLoja = 'LU FESTAS'
+            const cnpjLoja = '46.446.131/0001-06'
+            const enderecoLoja = 'Rua Ariramba, 121 - Alípio de Melo, Belo Horizonte, MG'
+
             const checkNewPage = (neededSpace = 30) => {
                 if (y < 50 + neededSpace) {
                     page = pdfDoc.addPage([595, 842])
@@ -473,14 +477,15 @@ export default function PedidoDetalhesPage() {
                 }
             }
 
-            const drawWrappedText = (text: string, size: number = 10) => {
+            const drawWrappedText = (text: string, size: number = 10, isBold: boolean = false) => {
                 const words = text.split(' ')
                 let line = ''
                 words.forEach(word => {
                     const testLine = line + word + ' '
-                    if (font.widthOfTextAtSize(testLine, size) > 495) {
+                    const width = isBold ? fontBold.widthOfTextAtSize(testLine, size) : font.widthOfTextAtSize(testLine, size)
+                    if (width > 495) {
                         checkNewPage(size + 2)
-                        page.drawText(line, { x: margin, y, size, font })
+                        page.drawText(line, { x: margin, y, size, font: isBold ? fontBold : font })
                         y -= size + 4
                         line = word + ' '
                     } else {
@@ -489,57 +494,134 @@ export default function PedidoDetalhesPage() {
                 })
                 if (line) {
                     checkNewPage(size + 2)
-                    page.drawText(line, { x: margin, y, size, font })
+                    page.drawText(line, { x: margin, y, size, font: isBold ? fontBold : font })
                     y -= size + 2
                 }
             }
 
-            // Header
-            page.drawText('CONTRATO DE LOCAÇÃO - LU FESTAS', { x: 150, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
-            y -= 30
-
-            page.drawText('LOCADOR: LU FESTAS - CNPJ: 46.446.131/0001-06', { x: margin, y, size: 10, font: fontBold })
-            y -= 20
-            page.drawText(`LOCATÁRIO: ${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'} | End: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 9, font })
+            // CABEÇALHO
+            page.drawText('CONTRATO DE LOCACAO DE MATERIAIS PARA FESTAS', { x: 120, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
             y -= 25
+            drawWrappedText('Pelo presente instrumento particular de contrato de locacao, de um lado, denominado LOCADOR:', 10)
+            y -= 10
 
-            // Itens
-            page.drawText('ITENS LOCADOS:', { x: margin, y, size: 10, font: fontBold })
+            // LOCADOR
+            page.drawText(`${nomeLoja}`, { x: margin, y, size: 11, font: fontBold })
             y -= lineHeight
-            page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: 545, y: y + 5 }, thickness: 0.5 })
+            page.drawText(`CNPJ: ${cnpjLoja}`, { x: margin, y, size: 10, font })
+            y -= lineHeight
+            page.drawText(`Endereco: ${enderecoLoja}`, { x: margin, y, size: 10, font })
+            y -= 20
+
+            // LOCATÁRIO
+            drawWrappedText('E, de outro lado, denominado LOCATARIO:', 10)
+            y -= 10
+            page.drawText(`${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 11, font: fontBold })
+            y -= lineHeight
+            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Nao informado'}`, { x: margin, y, size: 10, font })
+            y -= lineHeight
+            page.drawText(`Endereco: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 10, font })
+            y -= 20
+            drawWrappedText('Tem entre si justo e acordado o que segue:', 10)
+            y -= 15
+
+            // CLÁUSULA 1
+            checkNewPage()
+            page.drawText('Clausula 1: Objeto da Locacao', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('1.1. O presente contrato tem como objeto a locacao dos seguintes itens:', 10)
+            y -= lineHeight
+
+            // Tabela de itens
+            page.drawText('Qtd', { x: margin, y, size: 9, font: fontBold })
+            page.drawText('Descricao', { x: 85, y, size: 9, font: fontBold })
+            page.drawText('Valor Unit.', { x: 350, y, size: 9, font: fontBold })
+            page.drawText('Subtotal', { x: 450, y, size: 9, font: fontBold })
             y -= 5
+            page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
+            y -= 15
 
             pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
                 checkNewPage()
-                const subtotal = item.quantidade * item.preco_unitario
-                page.drawText(`${item.quantidade}x ${item.produtos?.nome || ''} - ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}`, { x: margin, y, size: 9, font })
-                y -= 13
+                const subtotalItem = item.quantidade * item.preco_unitario
+                page.drawText(item.quantidade.toString(), { x: margin, y, size: 9, font })
+                page.drawText(item.produtos?.nome || '', { x: 85, y, size: 9, font })
+                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario), { x: 350, y, size: 9, font })
+                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotalItem), { x: 450, y, size: 9, font })
+                y -= 15
             })
 
-            y -= 10
+            page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
+            y -= 15
+            page.drawText('TOTAL:', { x: 350, y, size: 10, font: fontBold })
+            page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido), { x: 450, y, size: 10, font: fontBold })
+            y -= 15
+
+            checkNewPage()
+            drawWrappedText('1.2. Todos os itens encontram-se em bom estado de conservacao e limpeza.', 10)
+            y -= 15
+
+            // CLÁUSULA 2
+            checkNewPage()
+            page.drawText('Clausula 2: Proibicao de Transferencia', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
+            drawWrappedText('2.1. Fica expressamente proibido ao LOCATARIO transferir, sub-locar, ceder ou emprestar os bens objeto deste contrato a terceiros.', 10)
+            y -= 15
+
+            // CLÁUSULA 3
+            checkNewPage()
+            page.drawText('Clausula 3: Duracao da Locacao e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
+            drawWrappedText(`3.1. A locacao tera duracao de 1 (um) dia, compreendendo o periodo de utilizacao dos itens a partir do dia ${dataEvento}.`, 10)
+            y -= 5
+            drawWrappedText(`3.2. O material sera entregue no endereco: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            y -= 15
+
+            // CLÁUSULA 4
+            checkNewPage()
+            page.drawText('Clausula 4: Valor do Aluguel e Forma de Pagamento', { x: margin, y, size: 10, font: fontBold })
+            y -= lineHeight
             const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
             const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
-
-            page.drawText(`DATA DO EVENTO: ${dataEvento}`, { x: margin, y, size: 10, font: fontBold })
+            drawWrappedText(`4.1. O valor do material alugado sera de ${valorTotal}. Sinal de 50%: ${valorSinal}.`, 10)
+            y -= 10
+            page.drawText('Dados para pagamento via PIX:', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
-            page.drawText(`VALOR TOTAL: ${valorTotal} | SINAL 50%: ${valorSinal}`, { x: margin, y, size: 10, font: fontBold })
-            y -= 25
+            page.drawText('CHAVE PIX CNPJ: 46.446.131/0001-06 | GABRIEL LUCAS | BANCO: CORA SCD', { x: margin, y, size: 9, font })
+            y -= 20
 
-            page.drawText('PIX: 46.446.131/0001-06 | GABRIEL LUCAS | BANCO CORA', { x: margin, y, size: 10, font })
-            y -= 30
+            // CLÁUSULAS 5-12 (resumidas)
+            const clausulas = [
+                { t: 'Clausula 5: Rescisao Contratual', c: '5.1. Caso nao ocorra o pagamento na data da entrega, este contrato sera automaticamente rescindido. Reservas antecipadas exigem aviso previo de uma semana.' },
+                { t: 'Clausula 6: Devolucao dos Bens', c: '6.1. Os bens deverao ser devolvidos nas mesmas condicoes de conservacao em que foram recebidos.' },
+                { t: 'Clausula 7: Multa por Atraso', c: '7.1. Multa de R$ 30,00 por dia de atraso na devolucao.' },
+                { t: 'Clausula 8: Responsabilidade por Danos', c: '8.1. O LOCATARIO sera responsavel por quaisquer danos ou quebras nos materiais locados.' },
+                { t: 'Clausula 9: Cuidados com os Materiais', c: '9.1. O LOCATARIO devera zelar pela limpeza e conservacao dos materiais locados.' },
+                { t: 'Clausula 10: Alteracao de Horario', c: '10.1. O LOCATARIO podera solicitar alteracao do horario com aviso previo de 3 horas.' },
+                { t: 'Clausula 11: Responsabilidade dos Sucessores', c: '11.1. Os herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
+                { t: 'Clausula 12: Foro Competente', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE - MG.' }
+            ]
 
-            // Assinatura
+            clausulas.forEach(cl => {
+                checkNewPage()
+                page.drawText(cl.t, { x: margin, y, size: 10, font: fontBold })
+                y -= lineHeight
+                drawWrappedText(cl.c, 10)
+                y -= 10
+            })
+
+            // ASSINATURAS
             checkNewPage(80)
+            drawWrappedText('Por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor.', 10)
+            y -= 20
             page.drawText(`Belo Horizonte, ${format(new Date(), "dd/MM/yyyy")}`, { x: margin, y, size: 10, font })
-            y -= 30
+            y -= 40
             page.drawLine({ start: { x: margin, y }, end: { x: 250, y }, thickness: 0.5 })
             page.drawLine({ start: { x: 300, y }, end: { x: 545, y }, thickness: 0.5 })
             y -= 15
-            page.drawText('LOCADOR', { x: margin, y, size: 9, font })
-            page.drawText('LOCATÁRIO (Assinatura)', { x: 300, y, size: 9, font })
+            page.drawText('LOCADOR: GABRIEL L. S. SOUZA', { x: margin, y, size: 9, font })
+            page.drawText('LOCATARIO: ' + (pedido.clientes?.nome?.toUpperCase() || ''), { x: 300, y, size: 9, font })
 
             const pdfBytes = await pdfDoc.save()
 
