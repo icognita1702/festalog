@@ -159,20 +159,25 @@ export default function RotasPage() {
 
                 setEntregas(novaOrdem)
 
-                // Calcular tempo e distância somando os steps
-                let tempoTotalSecs = 0
-                let distanciaTotalMeters = 0
+                // Usar os valores do summary da rota (não somar steps)
+                // route.duration = tempo total de viagem em segundos
+                // route.distance = distância total em metros
+                console.log('Route object:', JSON.stringify(route, null, 2))
+                console.log('Route duration:', route.duration, 'Route distance:', route.distance)
 
-                route.steps.forEach((step: { duration?: number; distance?: number }) => {
-                    tempoTotalSecs += step.duration || 0
-                    distanciaTotalMeters += step.distance || 0
-                })
+                // A API retorna duration e distance no objeto route diretamente
+                const tempoSegundos = route.duration || 0
+                const distanciaMetros = route.distance || 0
 
-                // Converter: segundos para minutos, metros para km
-                const tempoMinutos = Math.round(tempoTotalSecs / 60)
-                const distanciaKm = Math.round(distanciaTotalMeters / 100) / 10
+                // Subtrair tempo de serviço (5min = 300s por entrega)
+                const tempoServico = novaOrdem.length * 300
+                const tempoViagem = Math.max(0, tempoSegundos - tempoServico)
 
-                console.log(`Tempo total: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
+                // Converter
+                const tempoMinutos = Math.round(tempoViagem / 60)
+                const distanciaKm = Math.round(distanciaMetros / 100) / 10
+
+                console.log(`Tempo viagem: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
 
                 setTempoTotal(tempoMinutos)
                 setDistanciaTotal(distanciaKm)
