@@ -666,21 +666,21 @@ export default function PedidoDetalhesPage() {
             // Enviar via WhatsApp
             const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
 
-            const message = encodeURIComponent(
-                `*CONTRATO - LU FESTAS*\n\n` +
-                `Olá *${pedido.clientes?.nome}*!\n\n` +
-                `Seu contrato está pronto para assinatura.\n\n` +
-                (pdfUrl ? `*BAIXAR CONTRATO:*\n${pdfUrl}\n\n` : '*Erro ao gerar link do contrato*\n\n') +
-                `Data do Evento: ${dataEvento}\n` +
-                `Valor Total: ${valorTotal}\n` +
-                `Sinal (50%): ${valorSinal}\n\n` +
-                `*PIX para pagamento:*\n` +
+            const message =
+                `📋 *CONTRATO - LU FESTAS*\n\n` +
+                `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
+                `Seu contrato está pronto para assinatura. ✅\n\n` +
+                (pdfUrl ? `📄 *BAIXAR CONTRATO:*\n${pdfUrl}\n\n` : '⚠️ *Erro ao gerar link do contrato*\n\n') +
+                `📅 Data do Evento: ${dataEvento}\n` +
+                `💰 Valor Total: ${valorTotal}\n` +
+                `💳 Sinal (50%): ${valorSinal}\n\n` +
+                `🏦 *PIX para pagamento:*\n` +
                 `Chave CNPJ: 46.446.131/0001-06\n` +
                 `Nome: GABRIEL LUCAS\n` +
                 `Banco: CORA SCD\n\n` +
-                `Lu Festas`
-            )
-            window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+                `🎉 *Lu Festas* - Tornando seus momentos especiais!`
+
+            window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
 
             // Atualizar status
             await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)
