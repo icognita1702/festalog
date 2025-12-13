@@ -43,6 +43,7 @@ export default function NovoPedidoPage() {
 
     const [clienteId, setClienteId] = useState('')
     const [dataEvento, setDataEvento] = useState('')
+    const [horaEntrega, setHoraEntrega] = useState('14:00')
     const [observacoes, setObservacoes] = useState('')
     const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([])
     const [produtoSelecionado, setProdutoSelecionado] = useState('')
@@ -158,6 +159,7 @@ export default function NovoPedidoPage() {
                 .insert({
                     cliente_id: clienteId,
                     data_evento: dataEvento,
+                    hora_entrega: horaEntrega,
                     observacoes,
                     total_pedido: total,
                 })
@@ -223,7 +225,7 @@ export default function NovoPedidoPage() {
                             <CardDescription>Informações básicas do pedido</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-4 sm:grid-cols-3">
                                 <div className="grid gap-2">
                                     <Label htmlFor="cliente">Cliente *</Label>
                                     <Select value={clienteId} onValueChange={setClienteId} required>
@@ -254,6 +256,16 @@ export default function NovoPedidoPage() {
                                         value={dataEvento}
                                         onChange={(e) => setDataEvento(e.target.value)}
                                         min={new Date().toISOString().split('T')[0]}
+                                        required
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="hora">Horário de Entrega *</Label>
+                                    <Input
+                                        id="hora"
+                                        type="time"
+                                        value={horaEntrega}
+                                        onChange={(e) => setHoraEntrega(e.target.value)}
                                         required
                                     />
                                 </div>

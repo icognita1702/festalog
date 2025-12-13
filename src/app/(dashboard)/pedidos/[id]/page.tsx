@@ -291,10 +291,15 @@ export default function PedidoDetalhesPage() {
             page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
-            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, correspondente ao evento do LOCATÁRIO, até o recolhimento no dia seguinte.`, 10)
+            const horaEntrega = (pedido as any).hora_entrega || '14:00'
+            const [horaH, horaM] = horaEntrega.split(':').map(Number)
+            const horaInicio = `${String(Math.max(0, horaH - 1)).padStart(2, '0')}:${String(horaM).padStart(2, '0')}`
+            const horaFim = `${String(Math.min(23, horaH + 1)).padStart(2, '0')}:${String(horaM).padStart(2, '0')}`
+            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, com horário de entrega previsto entre ${horaInicio} e ${horaFim}, até o recolhimento no dia seguinte.`, 10)
             y -= 5
             drawWrappedText(`3.2. O material será entregue no endereço do evento, localizado em: ${pedido.clientes?.endereco_completo || ''}.`, 10)
             y -= 10
+
             page.drawText('IMPORTANTE: NÃO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
             y -= 15
 
@@ -356,6 +361,7 @@ export default function PedidoDetalhesPage() {
             checkNewPage()
             page.drawText('Cláusula 8ª: Responsabilidade por Danos e Quebras', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
+
             drawWrappedText('8.1. O LOCATÁRIO será responsável por quaisquer danos ou quebras nos materiais locados. Em caso de danos aos itens, serão aplicados os seguintes valores de reposição por unidade:', 10)
             y -= 10
             page.drawText('- Mesa: R$ 80,00 (oitenta reais)', { x: margin + 20, y, size: 9, font })
@@ -583,9 +589,13 @@ export default function PedidoDetalhesPage() {
             page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
-            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}.`, 10)
+            const horaEntrega2 = (pedido as any).hora_entrega || '14:00'
+            const [h2, m2] = horaEntrega2.split(':').map(Number)
+            const horaIni2 = `${String(Math.max(0, h2 - 1)).padStart(2, '0')}:${String(m2).padStart(2, '0')}`
+            const horaFim2 = `${String(Math.min(23, h2 + 1)).padStart(2, '0')}:${String(m2).padStart(2, '0')}`
+            drawWrappedText(`3.1. Entrega prevista entre ${horaIni2} e ${horaFim2} do dia ${dataEvento}.`, 10)
             y -= 5
-            drawWrappedText(`3.2. O material será entregue no endereço: ${pedido.clientes?.endereco_completo || ''}.`, 10)
+            drawWrappedText(`3.2. Endereço: ${pedido.clientes?.endereco_completo || ''}.`, 10)
             y -= 10
             page.drawText('IMPORTANTE: NÃO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
             y -= 15

@@ -157,8 +157,11 @@ export default function RotasPage() {
                 })
 
                 setEntregas(novaOrdem)
-                setTempoTotal(Math.round(route.duration / 60)) // minutos
-                setDistanciaTotal(Math.round(route.distance / 1000)) // km
+                // Validar e converter valores
+                const durationSecs = route.duration || 0
+                const distanceMeters = route.distance || 0
+                setTempoTotal(durationSecs > 0 ? Math.round(durationSecs / 60) : 0)
+                setDistanciaTotal(distanceMeters > 0 ? Math.round(distanceMeters / 1000 * 10) / 10 : 0)
                 setRotaOtimizada(true)
             }
         } catch (error) {
@@ -245,13 +248,13 @@ export default function RotasPage() {
                             <div className="flex items-center gap-2">
                                 <Clock className="h-5 w-5 text-green-600" />
                                 <span className="font-medium text-green-700 dark:text-green-400">
-                                    Tempo estimado: {tempoTotal} min
+                                    Tempo estimado: {tempoTotal >= 60 ? `${Math.floor(tempoTotal / 60)}h ${tempoTotal % 60}min` : `${tempoTotal} min`}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <MapPin className="h-5 w-5 text-green-600" />
                                 <span className="font-medium text-green-700 dark:text-green-400">
-                                    Distância: {distanciaTotal} km
+                                    Distância: {distanciaTotal > 0 ? `${distanciaTotal} km` : 'Calcular...'}
                                 </span>
                             </div>
                         </div>
