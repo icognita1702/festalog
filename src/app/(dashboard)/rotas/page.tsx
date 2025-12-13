@@ -81,148 +81,94 @@ export default function RotasPage() {
         setOtimizando(true)
 
         try {
-            // Bounding box para região metropolitana de Belo Horizonte
-            // (limita busca para evitar resultados em outros estados)
-            const bhBounds = 'boundary.rect.min_lon=-44.15&boundary.rect.max_lon=-43.85&boundary.rect.min_lat=-20.05&boundary.rect.max_lat=-19.75'
+            // Usar Nominatim (OSM) para geocodificar - 100% GRATUITO
+            const geocode = async (endereco: string): Promise<number[] | null> => {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}&countrycodes=br&limit=1`
+                const res = await fetch(url, {
+                    headers: { 'User-Agent': 'FestaLog/1.0' }
+                })
+                const data = await res.json()
+                if (data && data.length > 0) {
+                    // Nominatim retorna [lat, lon], precisamos inverter para [lon, lat]
+                    return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+                }
+                return null
+            }
 
             // Geocodificar endereços dos clientes
             const coordenadas = await Promise.all(
                 entregas.map(async (entrega) => {
                     const enderecoOriginal = entrega.pedido.clientes?.endereco_completo || ''
-                    // Adicionar "Belo Horizonte MG" se não tiver
                     const endereco = enderecoOriginal.toLowerCase().includes('belo horizonte')
                         ? enderecoOriginal
-                        : `${enderecoOriginal}, Belo Horizonte, MG`
-
-                    const url = `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${encodeURIComponent(endereco)}&boundary.country=BR&${bhBounds}&size=1`
+                        : `${enderecoOriginal}, Belo Horizonte, MG, Brasil`
 
                     console.log('Geocoding:', endereco)
-                    const res = await fetch(url)
-                    const data = await res.json()
-
-                    if (data.features && data.features.length > 0) {
-                        const coords = data.features[0].geometry.coordinates
-                        console.log('Resultado:', data.features[0].properties.label, '→', coords)
-                        return coords
+                    const coords = await geocode(endereco)
+                    if (coords) {
+                        console.log('Resultado:', endereco, '→', coords)
+                    } else {
+                        console.warn('Não encontrou:', endereco)
                     }
-                    console.warn('Não encontrou:', endereco)
-                    return null
+                    return coords
                 })
             )
 
             // Geocodificar endereço da loja
-            const lojaUrl = `https://api.openrouteservice.org/geocode/search?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&text=${encodeURIComponent(enderecoLoja)}&boundary.country=BR&${bhBounds}&size=1`
-            const lojaRes = await fetch(lojaUrl)
-            const lojaData = await lojaRes.json()
-            const lojaCoord = lojaData.features?.[0]?.geometry?.coordinates
+            const lojaEndereco = `${enderecoLoja}, Brasil`
+            const lojaCoord = await geocode(lojaEndereco)
 
             if (!lojaCoord) {
                 alert('Não foi possível geocodificar o endereço da loja')
                 setOtimizando(false)
                 return
             }
-            console.log('Loja:', lojaData.features[0].properties.label, '→', lojaCoord)
+            console.log('Loja:', lojaEndereco, '→', lojaCoord)
 
             // Filtrar coordenadas válidas
             const coordsValidas = coordenadas.filter((c): c is number[] => c !== null)
 
-            if (coordsValidas.length < 2) {
+            if (coordsValidas.length < 1) {
                 alert('Não foi possível geocodificar os endereços. Verifique se estão corretos.')
                 setOtimizando(false)
                 return
             }
 
-            // Chamar API de otimização para ordenar entregas
-            const response = await fetch('https://api.openrouteservice.org/optimization', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || '',
-                },
-                body: JSON.stringify({
-                    jobs: coordsValidas.map((coord, i) => ({
-                        id: i + 1,
-                        location: coord,
-                        service: 300, // 5 min por entrega
-                    })),
-                    vehicles: [{
-                        id: 1,
-                        profile: 'driving-car',
-                        start: lojaCoord,
-                        end: lojaCoord, // Retorna à loja
-                    }],
-                }),
-            })
+            // Construir array de coordenadas: loja -> entregas -> loja
+            const allCoords = [lojaCoord, ...coordsValidas, lojaCoord]
 
-            const result = await response.json()
-            console.log('Resultado otimização:', result)
+            console.log('=== ROTA CALCULADA ===')
+            console.log(`Total de pontos: ${allCoords.length} (Loja + ${coordsValidas.length} entregas + Volta)`)
 
-            if (result.routes && result.routes.length > 0) {
-                const route = result.routes[0]
+            // Usar OSRM para calcular rota - 100% GRATUITO
+            // Formato: lon,lat;lon,lat;...
+            const osrmCoords = allCoords.map(c => `${c[0]},${c[1]}`).join(';')
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${osrmCoords}?overview=false`
 
-                // Reordenar entregas conforme otimização
-                const novaOrdem: Entrega[] = []
-                route.steps.forEach((step: { type: string; job?: number }, ordem: number) => {
-                    if (step.type === 'job' && step.job !== undefined) {
-                        const entregaIndex = step.job - 1
-                        if (entregas[entregaIndex]) {
-                            novaOrdem.push({ ...entregas[entregaIndex], ordem: ordem })
-                        }
-                    }
-                })
+            console.log('OSRM URL:', osrmUrl)
+            const osrmRes = await fetch(osrmUrl)
+            const osrmData = await osrmRes.json()
 
-                setEntregas(novaOrdem)
+            console.log('OSRM result:', osrmData)
 
-                // Usar API de Directions para calcular tempo e distância precisos
-                // Construir array de coordenadas na ordem: loja -> entregas -> loja
-                const orderedCoords: number[][] = [lojaCoord]
-                route.steps.forEach((step: { type: string; location?: number[] }) => {
-                    if (step.type === 'job' && step.location) {
-                        orderedCoords.push(step.location)
-                    }
-                })
-                orderedCoords.push(lojaCoord) // Volta pra loja
+            if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
+                const route = osrmData.routes[0]
+                // OSRM retorna duration em segundos e distance em metros
+                const tempoMinutos = Math.round(route.duration / 60)
+                const distanciaKm = Math.round(route.distance / 100) / 10
 
-                console.log('=== ROTA CALCULADA ===')
-                console.log(`Total de pontos: ${orderedCoords.length} (Loja + ${orderedCoords.length - 2} entregas + Volta)`)
-                console.log('Coordenadas para rota:', orderedCoords)
+                console.log(`OSRM - Tempo: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
 
-                // Chamar API de Directions (GET method)
-                const coordsString = orderedCoords.map(c => c.join(',')).join('|')
-                const directionsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&start=${orderedCoords[0].join(',')}&end=${orderedCoords[orderedCoords.length - 1].join(',')}`
+                // Reordenar entregas (OSRM não otimiza, mantém a ordem)
+                // Se quiser otimizar, usar OSRM trip endpoint
+                setEntregas(entregas.map((e, i) => ({ ...e, ordem: i })))
 
-                // Para múltiplos waypoints, precisamos usar POST com coordinates
-                const directionsRes = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/json', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || '',
-                    },
-                    body: JSON.stringify({
-                        coordinates: orderedCoords,
-                    }),
-                })
-
-                const directionsData = await directionsRes.json()
-                console.log('Directions result:', directionsData)
-
-                if (directionsData.routes && directionsData.routes.length > 0) {
-                    const summary = directionsData.routes[0].summary
-                    const tempoMinutos = Math.round(summary.duration / 60)
-                    const distanciaKm = Math.round(summary.distance / 100) / 10
-
-                    console.log(`Directions - Tempo: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
-
-                    setTempoTotal(tempoMinutos)
-                    setDistanciaTotal(distanciaKm)
-                } else {
-                    // Fallback se directions falhar
-                    console.warn('Directions falhou, usando estimativa')
-                    setTempoTotal(0)
-                    setDistanciaTotal(0)
-                }
-
+                setTempoTotal(tempoMinutos)
+                setDistanciaTotal(distanciaKm)
                 setRotaOtimizada(true)
+            } else {
+                console.error('OSRM error:', osrmData)
+                alert('Erro ao calcular rota. Verifique os endereços.')
             }
         } catch (error) {
             console.error('Erro ao otimizar rota:', error)
