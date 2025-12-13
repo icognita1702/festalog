@@ -173,28 +173,55 @@ export default function RotasPage() {
 
                 setEntregas(novaOrdem)
 
-                // Usar os valores do summary da rota (não somar steps)
-                // route.duration = tempo total de viagem em segundos
-                // route.distance = distância total em metros
-                console.log('Route object:', JSON.stringify(route, null, 2))
-                console.log('Route duration:', route.duration, 'Route distance:', route.distance)
+                // Usar API de Directions para calcular tempo e distância precisos
+                // Construir array de coordenadas na ordem: loja -> entregas -> loja
+                const orderedCoords: number[][] = [lojaCoord]
+                route.steps.forEach((step: { type: string; location?: number[] }) => {
+                    if (step.type === 'job' && step.location) {
+                        orderedCoords.push(step.location)
+                    }
+                })
+                orderedCoords.push(lojaCoord) // Volta pra loja
 
-                // A API retorna duration e distance no objeto route diretamente
-                const tempoSegundos = route.duration || 0
-                const distanciaMetros = route.distance || 0
+                console.log('=== ROTA CALCULADA ===')
+                console.log(`Total de pontos: ${orderedCoords.length} (Loja + ${orderedCoords.length - 2} entregas + Volta)`)
+                console.log('Coordenadas para rota:', orderedCoords)
 
-                // Subtrair tempo de serviço (5min = 300s por entrega)
-                const tempoServico = novaOrdem.length * 300
-                const tempoViagem = Math.max(0, tempoSegundos - tempoServico)
+                // Chamar API de Directions (GET method)
+                const coordsString = orderedCoords.map(c => c.join(',')).join('|')
+                const directionsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || ''}&start=${orderedCoords[0].join(',')}&end=${orderedCoords[orderedCoords.length - 1].join(',')}`
 
-                // Converter
-                const tempoMinutos = Math.round(tempoViagem / 60)
-                const distanciaKm = Math.round(distanciaMetros / 100) / 10
+                // Para múltiplos waypoints, precisamos usar POST com coordinates
+                const directionsRes = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/json', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': process.env.NEXT_PUBLIC_OPENROUTE_API_KEY || '',
+                    },
+                    body: JSON.stringify({
+                        coordinates: orderedCoords,
+                    }),
+                })
 
-                console.log(`Tempo viagem: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
+                const directionsData = await directionsRes.json()
+                console.log('Directions result:', directionsData)
 
-                setTempoTotal(tempoMinutos)
-                setDistanciaTotal(distanciaKm)
+                if (directionsData.routes && directionsData.routes.length > 0) {
+                    const summary = directionsData.routes[0].summary
+                    const tempoMinutos = Math.round(summary.duration / 60)
+                    const distanciaKm = Math.round(summary.distance / 100) / 10
+
+                    console.log(`Directions - Tempo: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
+
+                    setTempoTotal(tempoMinutos)
+                    setDistanciaTotal(distanciaKm)
+                } else {
+                    // Fallback se directions falhar
+                    console.warn('Directions falhou, usando estimativa')
+                    setTempoTotal(0)
+                    setDistanciaTotal(0)
+                }
+
                 setRotaOtimizada(true)
             }
         } catch (error) {
