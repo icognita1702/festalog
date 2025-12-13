@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -66,7 +66,7 @@ const allStatus: StatusPedido[] = [
     'finalizado',
 ]
 
-export default function PedidosPage() {
+function PedidosContent() {
     const searchParams = useSearchParams()
     const dataParam = searchParams.get('data')
 
@@ -282,5 +282,13 @@ export default function PedidosPage() {
                 </CardContent>
             </Card>
         </div>
+    )
+}
+
+export default function PedidosPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+            <PedidosContent />
+        </Suspense>
     )
 }
