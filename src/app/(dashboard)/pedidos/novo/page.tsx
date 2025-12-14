@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { ConversationImportDialog } from '@/components/conversation-import-dialog'
 import type { ExtractionResult } from '@/lib/conversation-analyzer'
-import { calculateFreightForAddress } from '@/lib/freight-calculator'
+import { calculateFreightForAddress, getDefaultFreightConfig, type FreightConfig } from '@/lib/freight-calculator'
 
 interface ItemCarrinho {
     produto: Produto
@@ -43,6 +43,7 @@ export default function NovoPedidoPage() {
     const [saving, setSaving] = useState(false)
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [produtos, setProdutos] = useState<Produto[]>([])
+    const [freightConfig, setFreightConfig] = useState<FreightConfig>(getDefaultFreightConfig())
     const [disponibilidade, setDisponibilidade] = useState<DisponibilidadeProduto[]>([])
 
     const [clienteId, setClienteId] = useState('')
@@ -64,13 +65,23 @@ export default function NovoPedidoPage() {
     async function loadData() {
         setLoading(true)
 
-        const [clientesRes, produtosRes] = await Promise.all([
+        const [clientesRes, produtosRes, configRes] = await Promise.all([
             supabase.from('clientes').select('*').order('nome'),
             supabase.from('produtos').select('*').order('nome'),
+            (supabase as any).from('configuracoes').select('endereco, preco_km, frete_minimo').single()
         ])
 
         if (clientesRes.data) setClientes(clientesRes.data)
         if (produtosRes.data) setProdutos(produtosRes.data)
+
+        // Set freight config from database or use defaults
+        if (configRes.data) {
+            setFreightConfig({
+                storeAddress: configRes.data.endereco || getDefaultFreightConfig().storeAddress,
+                pricePerKm: configRes.data.preco_km ?? getDefaultFreightConfig().pricePerKm,
+                minimumFreight: configRes.data.frete_minimo ?? getDefaultFreightConfig().minimumFreight
+            })
+        }
 
         setLoading(false)
     }
@@ -121,13 +132,13 @@ export default function NovoPedidoPage() {
             setCalculandoFrete(true)
             setErroFrete('')
 
-            const result = await calculateFreightForAddress(cliente.endereco_completo)
+            const result = await calculateFreightForAddress(cliente.endereco_completo, freightConfig)
 
             if (result) {
                 setFrete(result.freight)
                 setDistanciaKm(result.distanceKm)
             } else {
-                setFrete(15) // Minimum freight as fallback
+                setFrete(freightConfig.minimumFreight) // Minimum freight as fallback
                 setDistanciaKm(0)
                 setErroFrete('Não foi possível calcular a distância. Usando frete mínimo.')
             }

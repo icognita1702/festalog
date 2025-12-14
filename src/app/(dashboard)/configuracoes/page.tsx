@@ -5,19 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
     Building2,
     CreditCard,
-    MessageCircle,
+    Truck,
     MapPin,
     Save,
     Loader2,
     Check,
     ExternalLink,
-    Star,
-    Truck
+    Star
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -33,9 +31,9 @@ interface Configuracoes {
     pix_nome: string
     pix_banco: string
     google_place_id: string
-    whatsapp_instance: string
     whatsapp_proprietario: string
-    mensagem_boas_vindas: string
+    preco_km: number
+    frete_minimo: number
 }
 
 const configPadrao: Configuracoes = {
@@ -49,9 +47,9 @@ const configPadrao: Configuracoes = {
     pix_nome: 'GABRIEL LUCAS',
     pix_banco: 'CORA SCD',
     google_place_id: 'ChIJxyFz3xGXpgAR8jNtT0lyZTE',
-    whatsapp_instance: 'lufestas',
     whatsapp_proprietario: '5531982290789',
-    mensagem_boas_vindas: 'Olá! Bem-vindo à Lu Festas! Como posso ajudar?'
+    preco_km: 2.00,
+    frete_minimo: 15.00
 }
 
 export default function ConfiguracoesPage() {
@@ -108,7 +106,7 @@ export default function ConfiguracoesPage() {
         setSaving(false)
     }
 
-    function updateConfig(field: keyof Configuracoes, value: string) {
+    function updateConfig(field: keyof Configuracoes, value: string | number) {
         setConfig(prev => ({ ...prev, [field]: value }))
     }
 
@@ -154,9 +152,9 @@ export default function ConfiguracoesPage() {
                         <CreditCard className="h-4 w-4" />
                         Pagamento
                     </TabsTrigger>
-                    <TabsTrigger value="integracoes" className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4" />
-                        Integrações
+                    <TabsTrigger value="entregas" className="flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        Entregas
                     </TabsTrigger>
                     <TabsTrigger value="google" className="flex items-center gap-2">
                         <Star className="h-4 w-4" />
@@ -199,6 +197,9 @@ export default function ConfiguracoesPage() {
                                     value={config.endereco}
                                     onChange={(e) => updateConfig('endereco', e.target.value)}
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Este endereço é usado como origem para o cálculo de frete
+                                </p>
                             </div>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="grid gap-2">
@@ -285,42 +286,78 @@ export default function ConfiguracoesPage() {
                     </Card>
                 </TabsContent>
 
-                {/* Integrações */}
-                <TabsContent value="integracoes">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>WhatsApp Bot</CardTitle>
-                            <CardDescription>
-                                Configurações da integração com WhatsApp
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="whatsapp_instance">Nome da Instância (Evolution API)</Label>
-                                <Input
-                                    id="whatsapp_instance"
-                                    value={config.whatsapp_instance}
-                                    onChange={(e) => updateConfig('whatsapp_instance', e.target.value)}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="mensagem_boas_vindas">Mensagem de Boas-vindas</Label>
-                                <Textarea
-                                    id="mensagem_boas_vindas"
-                                    value={config.mensagem_boas_vindas}
-                                    onChange={(e) => updateConfig('mensagem_boas_vindas', e.target.value)}
-                                    rows={3}
-                                />
-                            </div>
-
-                            {/* WhatsApp Proprietário para Rotas */}
-                            <div className="border-t pt-4 mt-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Truck className="h-5 w-5 text-muted-foreground" />
-                                    <span className="font-medium">Rotas de Entrega</span>
+                {/* Entregas (formerly Integrações) */}
+                <TabsContent value="entregas">
+                    <div className="space-y-6">
+                        {/* Cálculo de Frete */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <MapPin className="h-5 w-5" />
+                                    Cálculo de Frete
+                                </CardTitle>
+                                <CardDescription>
+                                    Configure os valores utilizados no cálculo automático de frete
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="preco_km">Preço por KM (R$)</Label>
+                                        <Input
+                                            id="preco_km"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={config.preco_km}
+                                            onChange={(e) => updateConfig('preco_km', parseFloat(e.target.value) || 0)}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Valor cobrado por quilômetro rodado
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="frete_minimo">Frete Mínimo (R$)</Label>
+                                        <Input
+                                            id="frete_minimo"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={config.frete_minimo}
+                                            onChange={(e) => updateConfig('frete_minimo', parseFloat(e.target.value) || 0)}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Valor mínimo cobrado para qualquer entrega
+                                        </p>
+                                    </div>
                                 </div>
+
+                                {/* Preview */}
+                                <div className="rounded-lg bg-muted p-4">
+                                    <p className="text-sm font-medium mb-2">Exemplo de cálculo:</p>
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                        <p>• Distância: 10 km → Frete: R$ {Math.max(10 * config.preco_km, config.frete_minimo).toFixed(2)}</p>
+                                        <p>• Distância: 3 km → Frete: R$ {Math.max(3 * config.preco_km, config.frete_minimo).toFixed(2)}</p>
+                                        <p>• Distância: 20 km → Frete: R$ {Math.max(20 * config.preco_km, config.frete_minimo).toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* WhatsApp para Rotas */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Truck className="h-5 w-5" />
+                                    Rotas de Entrega
+                                </CardTitle>
+                                <CardDescription>
+                                    Número para receber os links das rotas otimizadas
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="whatsapp_proprietario">Seu WhatsApp (para receber rotas)</Label>
+                                    <Label htmlFor="whatsapp_proprietario">Seu WhatsApp</Label>
                                     <Input
                                         id="whatsapp_proprietario"
                                         value={config.whatsapp_proprietario}
@@ -328,12 +365,12 @@ export default function ConfiguracoesPage() {
                                         placeholder="5531999999999"
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Número para onde serão enviados os links das rotas (formato: 5531999999999)
+                                        Formato: código do país + DDD + número (ex: 5531999999999)
                                     </p>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </TabsContent>
 
                 {/* Google */}
