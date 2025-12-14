@@ -25,13 +25,18 @@ import {
     FileText,
     DollarSign,
     Truck,
-    Package
+    Package,
+    CheckCircle2,
+    XCircle,
+    ExternalLink
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { EmojiText } from '@/components/ui/emoji-text'
 import type { PedidoComCliente } from '@/lib/database.types'
 
 type TemplateType = 'orcamento' | 'contrato' | 'cobranca' | 'entrega' | 'recolhimento' | 'avaliacao'
+type SendStatus = 'idle' | 'sending' | 'success' | 'error'
+
 
 // Emojis como constantes para garantir encoding correto
 const EMOJI = {
@@ -154,6 +159,8 @@ export default function WhatsAppPage() {
     const [templateSelecionado, setTemplateSelecionado] = useState<TemplateType | null>(null)
     const [mensagemFinal, setMensagemFinal] = useState('')
     const [copiado, setCopiado] = useState(false)
+    const [sendStatus, setSendStatus] = useState<SendStatus>('idle')
+    const [errorMessage, setErrorMessage] = useState('')
 
     async function loadPedidos() {
         const { data, error } = await supabase
@@ -198,7 +205,43 @@ export default function WhatsAppPage() {
         setTimeout(() => setCopiado(false), 2000)
     }
 
-    function enviarWhatsApp() {
+    async function enviarDireto() {
+        const pedido = pedidos.find(p => p.id === pedidoSelecionado)
+        if (!pedido || !mensagemFinal) return
+
+        setSendStatus('sending')
+        setErrorMessage('')
+
+        try {
+            const number = '55' + (pedido.clientes?.whatsapp.replace(/\D/g, '') || '')
+
+            const response = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    number,
+                    text: mensagemFinal
+                })
+            })
+
+            const result = await response.json()
+
+            if (response.ok && result.success) {
+                setSendStatus('success')
+                setTimeout(() => setSendStatus('idle'), 3000)
+            } else {
+                setSendStatus('error')
+                setErrorMessage(result.error || 'Erro ao enviar mensagem')
+                setTimeout(() => setSendStatus('idle'), 5000)
+            }
+        } catch (error) {
+            setSendStatus('error')
+            setErrorMessage('Erro de conexão. Verifique se o WhatsApp está conectado.')
+            setTimeout(() => setSendStatus('idle'), 5000)
+        }
+    }
+
+    function enviarWhatsAppWeb() {
         const pedido = pedidos.find(p => p.id === pedidoSelecionado)
         if (!pedido) return
 
@@ -322,33 +365,80 @@ export default function WhatsAppPage() {
                             </div>
                         )}
 
-                        <div className="flex gap-3">
+                        {/* Status de envio */}
+                        {sendStatus === 'success' && (
+                            <div className="flex items-center gap-2 rounded-lg bg-green-100 p-3 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle2 className="h-5 w-5" />
+                                <span className="font-medium">Mensagem enviada com sucesso!</span>
+                            </div>
+                        )}
+
+                        {sendStatus === 'error' && (
+                            <div className="flex items-center gap-2 rounded-lg bg-red-100 p-3 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                <XCircle className="h-5 w-5" />
+                                <span className="font-medium">{errorMessage}</span>
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            {/* Botão principal - Envio direto */}
                             <Button
-                                variant="outline"
-                                className="flex-1"
-                                onClick={copiarMensagem}
-                                disabled={!mensagemFinal}
+                                className="w-full bg-green-600 hover:bg-green-700"
+                                onClick={enviarDireto}
+                                disabled={!mensagemFinal || !pedidoSelecionado || sendStatus === 'sending'}
                             >
-                                {copiado ? (
+                                {sendStatus === 'sending' ? (
                                     <>
-                                        <Check className="mr-2 h-4 w-4" />
-                                        Copiado!
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Enviando...
+                                    </>
+                                ) : sendStatus === 'success' ? (
+                                    <>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                        Enviado!
                                     </>
                                 ) : (
                                     <>
-                                        <Copy className="mr-2 h-4 w-4" />
-                                        Copiar
+                                        <Send className="mr-2 h-4 w-4" />
+                                        Enviar Direto (Bot)
                                     </>
                                 )}
                             </Button>
-                            <Button
-                                className="flex-1 bg-green-600 hover:bg-green-700"
-                                onClick={enviarWhatsApp}
-                                disabled={!mensagemFinal || !pedidoSelecionado}
-                            >
-                                <Send className="mr-2 h-4 w-4" />
-                                Enviar via WhatsApp
-                            </Button>
+
+                            {/* Botões secundários */}
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={copiarMensagem}
+                                    disabled={!mensagemFinal}
+                                >
+                                    {copiado ? (
+                                        <>
+                                            <Check className="mr-2 h-4 w-4" />
+                                            Copiado!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copiar
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={enviarWhatsAppWeb}
+                                    disabled={!mensagemFinal || !pedidoSelecionado}
+                                >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    WhatsApp Web
+                                </Button>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground text-center">
+                                💡 "Enviar Direto" usa o bot conectado. "WhatsApp Web" abre no navegador.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>

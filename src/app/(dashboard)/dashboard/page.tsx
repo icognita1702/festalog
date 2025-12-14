@@ -6,13 +6,24 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import {
     Truck,
     Package,
     Users,
     DollarSign,
     CalendarDays,
     Clock,
-    ArrowRight
+    ArrowRight,
+    MapPin,
+    Phone,
+    Loader2,
+    ExternalLink
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -42,6 +53,9 @@ const statusLabels: Record<StatusPedido, string> = {
 
 export default function DashboardPage() {
     const [date, setDate] = useState<Date | undefined>(new Date())
+    const [showPopup, setShowPopup] = useState(false)
+    const [pedidosData, setPedidosData] = useState<PedidoComCliente[]>([])
+    const [loadingPedidos, setLoadingPedidos] = useState(false)
     const [stats, setStats] = useState({
         entregasHoje: 0,
         pedidosPendentes: 0,
@@ -50,6 +64,7 @@ export default function DashboardPage() {
     })
     const [pedidosRecentes, setPedidosRecentes] = useState<PedidoComCliente[]>([])
     const [loading, setLoading] = useState(true)
+    const [datasComPedidos, setDatasComPedidos] = useState<string[]>([])
 
     useEffect(() => {
         async function loadData() {
@@ -99,6 +114,16 @@ export default function DashboardPage() {
                     .limit(5)
 
                 setPedidosRecentes((pedidos as PedidoComCliente[]) || [])
+
+                // Carregar datas com pedidos para destacar no calendário
+                const { data: todasDatas } = await supabase
+                    .from('pedidos')
+                    .select('data_evento')
+                    .not('status', 'eq', 'orcamento')
+
+                if (todasDatas) {
+                    setDatasComPedidos(todasDatas.map(p => p.data_evento))
+                }
             } catch (error) {
                 console.error('Erro ao carregar dados:', error)
             } finally {
@@ -108,6 +133,43 @@ export default function DashboardPage() {
 
         loadData()
     }, [])
+
+    async function handleDateSelect(selectedDate: Date | undefined) {
+        setDate(selectedDate)
+        if (selectedDate) {
+            setShowPopup(true)
+            setLoadingPedidos(true)
+
+            const dataFormatada = format(selectedDate, 'yyyy-MM-dd')
+            const { data, error } = await supabase
+                .from('pedidos')
+                .select('*, clientes(*)')
+                .eq('data_evento', dataFormatada)
+                .order('hora_entrega', { ascending: true })
+
+            if (!error && data) {
+                setPedidosData(data as PedidoComCliente[])
+            } else {
+                setPedidosData([])
+            }
+            setLoadingPedidos(false)
+        }
+    }
+
+    // Função para destacar datas com pedidos
+    const modifiers = {
+        hasEvent: (day: Date) => {
+            const dateStr = format(day, 'yyyy-MM-dd')
+            return datasComPedidos.includes(dateStr)
+        }
+    }
+
+    const modifiersStyles = {
+        hasEvent: {
+            backgroundColor: 'hsl(var(--primary) / 0.2)',
+            fontWeight: 'bold' as const,
+        }
+    }
 
     return (
         <div className="space-y-8">
@@ -246,28 +308,124 @@ export default function DashboardPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Calendário</CardTitle>
-                        <CardDescription>Selecione uma data para ver os eventos</CardDescription>
+                        <CardDescription>Clique em uma data para ver os pedidos</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Calendar
                             mode="single"
                             selected={date}
-                            onSelect={setDate}
+                            onSelect={handleDateSelect}
                             className="rounded-md border"
                             locale={ptBR}
+                            modifiers={modifiers}
+                            modifiersStyles={modifiersStyles}
                         />
-                        {date && (
-                            <div className="mt-4">
-                                <Button asChild className="w-full">
-                                    <Link href={`/pedidos?data=${format(date, 'yyyy-MM-dd')}`}>
-                                        Ver pedidos de {format(date, "dd/MM")}
-                                    </Link>
-                                </Button>
-                            </div>
-                        )}
+                        <p className="mt-2 text-xs text-muted-foreground text-center">
+                            📍 Datas destacadas possuem pedidos
+                        </p>
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Popup de Pedidos da Data */}
+            <Dialog open={showPopup} onOpenChange={setShowPopup}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <CalendarDays className="h-5 w-5" />
+                            Pedidos de {date ? format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : ''}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {pedidosData.length} pedido(s) encontrado(s) para esta data
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {loadingPedidos ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : pedidosData.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <Package className="h-16 w-16 text-muted-foreground/30" />
+                            <p className="mt-4 text-lg font-medium">Nenhum pedido nesta data</p>
+                            <p className="text-sm text-muted-foreground">
+                                Selecione outra data ou crie um novo pedido
+                            </p>
+                            <Button asChild className="mt-4">
+                                <Link href="/pedidos/novo">Criar Pedido</Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {pedidosData.map((pedido) => (
+                                <div
+                                    key={pedido.id}
+                                    className="rounded-lg border p-4 space-y-3 hover:bg-muted/50 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <h3 className="font-semibold text-lg">
+                                                {pedido.clientes?.nome}
+                                            </h3>
+                                            <Badge className={`${statusColors[pedido.status]} mt-1`}>
+                                                {statusLabels[pedido.status]}
+                                            </Badge>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-primary">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
+                                            </p>
+                                            {(pedido as any).hora_entrega && (
+                                                <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                                                    <Clock className="h-3 w-3" />
+                                                    {(pedido as any).hora_entrega}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-2 text-sm">
+                                        <div className="flex items-start gap-2">
+                                            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                            <span className="text-muted-foreground">
+                                                {pedido.clientes?.endereco_completo || 'Endereço não informado'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Phone className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-muted-foreground">
+                                                {pedido.clientes?.whatsapp || 'Telefone não informado'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                        <Button asChild size="sm" variant="outline" className="flex-1">
+                                            <Link href={`/pedidos/${pedido.id}`}>
+                                                <ExternalLink className="h-4 w-4 mr-2" />
+                                                Ver Detalhes
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            className="flex-1"
+                                            onClick={() => {
+                                                const number = pedido.clientes?.whatsapp?.replace(/\D/g, '') || ''
+                                                window.open(`https://api.whatsapp.com/send?phone=55${number}`, '_blank')
+                                            }}
+                                        >
+                                            <Phone className="h-4 w-4 mr-2" />
+                                            WhatsApp
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
+
