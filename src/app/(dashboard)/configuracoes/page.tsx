@@ -16,7 +16,8 @@ import {
     Loader2,
     Check,
     ExternalLink,
-    Star
+    Star,
+    Truck
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -33,6 +34,7 @@ interface Configuracoes {
     pix_banco: string
     google_place_id: string
     whatsapp_instance: string
+    whatsapp_proprietario: string
     mensagem_boas_vindas: string
 }
 
@@ -48,6 +50,7 @@ const configPadrao: Configuracoes = {
     pix_banco: 'CORA SCD',
     google_place_id: 'ChIJxyFz3xGXpgAR8jNtT0lyZTE',
     whatsapp_instance: 'lufestas',
+    whatsapp_proprietario: '5531982290789',
     mensagem_boas_vindas: 'Olá! Bem-vindo à Lu Festas! Como posso ajudar?'
 }
 
@@ -308,6 +311,26 @@ export default function ConfiguracoesPage() {
                                     onChange={(e) => updateConfig('mensagem_boas_vindas', e.target.value)}
                                     rows={3}
                                 />
+                            </div>
+
+                            {/* WhatsApp Proprietário para Rotas */}
+                            <div className="border-t pt-4 mt-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Truck className="h-5 w-5 text-muted-foreground" />
+                                    <span className="font-medium">Rotas de Entrega</span>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="whatsapp_proprietario">Seu WhatsApp (para receber rotas)</Label>
+                                    <Input
+                                        id="whatsapp_proprietario"
+                                        value={config.whatsapp_proprietario}
+                                        onChange={(e) => updateConfig('whatsapp_proprietario', e.target.value)}
+                                        placeholder="5531999999999"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Número para onde serão enviados os links das rotas (formato: 5531999999999)
+                                    </p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

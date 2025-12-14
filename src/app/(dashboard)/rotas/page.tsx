@@ -12,7 +12,9 @@ import {
     Clock,
     Truck,
     ExternalLink,
-    RefreshCw
+    RefreshCw,
+    MessageCircle,
+    Mail
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -44,6 +46,25 @@ export default function RotasPage() {
     const [distanciaTotal, setDistanciaTotal] = useState<number | null>(null)
 
     const enderecoLoja = process.env.NEXT_PUBLIC_LOJA_ENDERECO || 'Rua Ariramba 121, BH - MG'
+    const [whatsappProprietario, setWhatsappProprietario] = useState('5531982290789')
+
+    // Load config for WhatsApp proprietário
+    useEffect(() => {
+        async function loadConfig() {
+            try {
+                const { data } = await (supabase as any)
+                    .from('configuracoes')
+                    .select('whatsapp_proprietario')
+                    .single()
+                if (data?.whatsapp_proprietario) {
+                    setWhatsappProprietario(data.whatsapp_proprietario)
+                }
+            } catch (error) {
+                console.log('Usando WhatsApp padrão')
+            }
+        }
+        loadConfig()
+    }, [])
 
     async function loadEntregas() {
         setLoading(true)
@@ -199,6 +220,36 @@ export default function RotasPage() {
         window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
     }
 
+    function getGoogleMapsUrl() {
+        if (entregas.length === 0) return ''
+        const waypoints = entregas
+            .map(e => encodeURIComponent(e.pedido.clientes?.endereco_completo || ''))
+            .join('/')
+        return `https://www.google.com/maps/dir/${encodeURIComponent(enderecoLoja)}/${waypoints}/${encodeURIComponent(enderecoLoja)}`
+    }
+
+    function enviarRotaWhatsApp() {
+        if (entregas.length === 0) return
+        const url = getGoogleMapsUrl()
+        const dataFormatada = format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })
+        const message = `🚚 *Rota de Entregas - ${dataFormatada}*\n\n` +
+            `📍 ${entregas.length} entrega(s)\n\n` +
+            entregas.map((e, i) => `${i + 1}. ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
+            `\n\n🗺️ Abrir rota:\n${url}`
+        window.open(`https://api.whatsapp.com/send?phone=${whatsappProprietario}&text=${encodeURIComponent(message)}`, '_blank')
+    }
+
+    function enviarRotaEmail() {
+        if (entregas.length === 0) return
+        const url = getGoogleMapsUrl()
+        const dataFormatada = format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })
+        const subject = `Rota de Entregas - ${dataFormatada}`
+        const body = `Rota com ${entregas.length} entrega(s):\n\n` +
+            entregas.map((e, i) => `${i + 1}. ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
+            `\n\nAbrir no Google Maps:\n${url}`
+        window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
+    }
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -247,7 +298,24 @@ export default function RotasPage() {
                             disabled={entregas.length === 0}
                         >
                             <Navigation className="mr-2 h-4 w-4" />
-                            Abrir no Google Maps
+                            Abrir no Maps
+                        </Button>
+                        <Button
+                            onClick={enviarRotaWhatsApp}
+                            disabled={entregas.length === 0}
+                            variant="secondary"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            <MessageCircle className="mr-2 h-4 w-4" />
+                            Enviar via WhatsApp
+                        </Button>
+                        <Button
+                            onClick={enviarRotaEmail}
+                            disabled={entregas.length === 0}
+                            variant="outline"
+                        >
+                            <Mail className="mr-2 h-4 w-4" />
+                            Enviar por Email
                         </Button>
                     </div>
 

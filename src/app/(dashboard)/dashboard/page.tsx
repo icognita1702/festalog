@@ -52,7 +52,7 @@ const statusLabels: Record<StatusPedido, string> = {
 }
 
 export default function DashboardPage() {
-    const [date, setDate] = useState<Date | undefined>(new Date())
+    const [date, setDate] = useState<Date | undefined>(undefined)
     const [showPopup, setShowPopup] = useState(false)
     const [pedidosData, setPedidosData] = useState<PedidoComCliente[]>([])
     const [loadingPedidos, setLoadingPedidos] = useState(false)
@@ -429,6 +429,27 @@ export default function DashboardPage() {
                                         >
                                             <Phone className="h-4 w-4 mr-2" />
                                             WhatsApp
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                                const eventDate = new Date(pedido.data_evento + 'T12:00:00')
+                                                const startDate = format(eventDate, "yyyyMMdd")
+                                                const endDate = format(eventDate, "yyyyMMdd")
+                                                const title = encodeURIComponent(`Entrega - ${pedido.clientes?.nome}`)
+                                                const details = encodeURIComponent(
+                                                    `Cliente: ${pedido.clientes?.nome}\n` +
+                                                    `Valor: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}\n` +
+                                                    `Telefone: ${pedido.clientes?.whatsapp || 'N/A'}`
+                                                )
+                                                const location = encodeURIComponent(pedido.clientes?.endereco_completo || '')
+                                                const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${details}&location=${location}`
+                                                window.open(url, '_blank')
+                                            }}
+                                        >
+                                            <CalendarDays className="h-4 w-4 mr-2" />
+                                            Agenda
                                         </Button>
                                     </div>
                                 </div>
