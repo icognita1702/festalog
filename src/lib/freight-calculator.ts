@@ -4,13 +4,14 @@
  * Uses free APIs: Nominatim (geocoding) and OSRM (routing)
  */
 
-// Configuration
-const STORE_ADDRESS = 'Rua Ariramba 121, Belo Horizonte, MG, Brasil'
-const PRICE_PER_KM = 2.00  // R$ per km
-const MINIMUM_FREIGHT = 15.00  // Minimum freight charge (never free)
+export interface FreightConfig {
+    storeAddress: string
+    pricePerKm: number
+    minimumFreight: number
+}
 
-// Store coordinates cache
-let storeCoordinates: [number, number] | null = null
+// Store coordinates cache (keyed by address for multi-tenant support)
+const coordinatesCache: Map<string, [number, number]> = new Map()
 
 /**
  * Geocode an address to coordinates using Nominatim (OpenStreetMap)
@@ -18,6 +19,10 @@ let storeCoordinates: [number, number] | null = null
  * @returns [longitude, latitude] or null if not found
  */
 export async function geocodeAddress(address: string): Promise<[number, number] | null> {
+    // Check cache first
+    const cached = coordinatesCache.get(address)
+    if (cached) return cached
+
     try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=br&limit=1`
         const response = await fetch(url, {
@@ -27,23 +32,15 @@ export async function geocodeAddress(address: string): Promise<[number, number] 
 
         if (data && data.length > 0) {
             // Nominatim returns [lat, lon], we return [lon, lat] for OSRM
-            return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+            const coords: [number, number] = [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+            coordinatesCache.set(address, coords)
+            return coords
         }
         return null
     } catch (error) {
         console.error('Error geocoding address:', error)
         return null
     }
-}
-
-/**
- * Get store coordinates (cached)
- */
-async function getStoreCoordinates(): Promise<[number, number] | null> {
-    if (storeCoordinates) return storeCoordinates
-
-    storeCoordinates = await geocodeAddress(STORE_ADDRESS)
-    return storeCoordinates
 }
 
 /**
@@ -77,29 +74,34 @@ export async function calculateDistance(
 
 /**
  * Calculate freight cost based on distance
- * Formula: max(distance * PRICE_PER_KM, MINIMUM_FREIGHT)
+ * Formula: max(distance * pricePerKm, minimumFreight)
  * Freight is never free
  * @param distanceKm - Distance in kilometers
+ * @param config - Freight configuration
  * @returns Freight cost in BRL
  */
-export function calculateFreightFromDistance(distanceKm: number): number {
-    const calculated = distanceKm * PRICE_PER_KM
-    return Math.max(calculated, MINIMUM_FREIGHT)
+export function calculateFreightFromDistance(distanceKm: number, config: FreightConfig): number {
+    const calculated = distanceKm * config.pricePerKm
+    return Math.max(calculated, config.minimumFreight)
 }
 
 /**
  * Calculate freight for a customer address
  * Main function to be used by the order form
  * @param customerAddress - Full customer address
+ * @param config - Freight configuration (storeAddress, pricePerKm, minimumFreight)
  * @returns { distanceKm, freight } or null if calculation fails
  */
-export async function calculateFreightForAddress(customerAddress: string): Promise<{
+export async function calculateFreightForAddress(
+    customerAddress: string,
+    config: FreightConfig
+): Promise<{
     distanceKm: number
     freight: number
 } | null> {
     try {
         // Get store coordinates
-        const storeCoords = await getStoreCoordinates()
+        const storeCoords = await geocodeAddress(config.storeAddress)
         if (!storeCoords) {
             console.error('Could not geocode store address')
             return null
@@ -125,7 +127,7 @@ export async function calculateFreightForAddress(customerAddress: string): Promi
         }
 
         // Calculate freight
-        const freight = calculateFreightFromDistance(distanceKm)
+        const freight = calculateFreightFromDistance(distanceKm, config)
 
         return { distanceKm, freight }
     } catch (error) {
@@ -135,12 +137,12 @@ export async function calculateFreightForAddress(customerAddress: string): Promi
 }
 
 /**
- * Get freight configuration for display purposes
+ * Get default freight configuration for fallback purposes
  */
-export function getFreightConfig() {
+export function getDefaultFreightConfig(): FreightConfig {
     return {
-        pricePerKm: PRICE_PER_KM,
-        minimumFreight: MINIMUM_FREIGHT,
-        storeAddress: STORE_ADDRESS
+        storeAddress: 'Rua Ariramba 121, Belo Horizonte, MG, Brasil',
+        pricePerKm: 2.00,
+        minimumFreight: 15.00
     }
 }
