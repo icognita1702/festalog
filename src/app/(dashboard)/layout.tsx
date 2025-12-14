@@ -8,8 +8,9 @@ export default function DashboardLayout({
     return (
         <div className="min-h-screen bg-background">
             <Sidebar />
-            <main className="ml-64 min-h-screen">
-                <div className="p-8">
+            {/* Responsive: pt-16 for mobile header, lg:pt-0 lg:ml-64 for desktop sidebar */}
+            <main className="min-h-screen pt-16 lg:pt-0 lg:ml-64">
+                <div className="p-4 lg:p-8">
                     {children}
                 </div>
             </main>
