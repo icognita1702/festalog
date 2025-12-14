@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Calendar } from '@/components/ui/calendar'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
 import {
     Dialog,
     DialogContent,
@@ -22,7 +27,8 @@ import {
     ExternalLink,
     RefreshCw,
     MessageCircle,
-    AlertTriangle
+    AlertTriangle,
+    CalendarIcon
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -59,6 +65,8 @@ export default function RotasPage() {
 
     const enderecoLoja = process.env.NEXT_PUBLIC_LOJA_ENDERECO || 'Rua Ariramba 121, BH - MG'
     const [whatsappProprietario, setWhatsappProprietario] = useState('5531982290789')
+    const [datasComEntrega, setDatasComEntrega] = useState<Date[]>([])
+    const [calendarOpen, setCalendarOpen] = useState(false)
 
     // Load config for WhatsApp proprietário
     useEffect(() => {
@@ -76,7 +84,24 @@ export default function RotasPage() {
             }
         }
         loadConfig()
+        loadDatasComEntrega()
     }, [])
+
+    // Load all dates that have deliveries
+    async function loadDatasComEntrega() {
+        const { data, error } = await supabase
+            .from('pedidos')
+            .select('data_evento')
+            .in('status', ['assinado', 'pago_50'])
+
+        if (!error && data) {
+            const datas = data
+                .map(p => p.data_evento)
+                .filter((value, index, self) => self.indexOf(value) === index) // unique
+                .map(d => new Date(d + 'T12:00:00'))
+            setDatasComEntrega(datas)
+        }
+    }
 
     async function loadEntregas() {
         setLoading(true)
@@ -385,12 +410,37 @@ export default function RotasPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-wrap gap-4">
-                        <Input
-                            type="date"
-                            value={dataRota}
-                            onChange={(e) => setDataRota(e.target.value)}
-                            className="w-[200px]"
-                        />
+                        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy")}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={new Date(dataRota + 'T12:00:00')}
+                                    onSelect={(date) => {
+                                        if (date) {
+                                            setDataRota(format(date, 'yyyy-MM-dd'))
+                                            setCalendarOpen(false)
+                                        }
+                                    }}
+                                    modifiers={{
+                                        hasDelivery: datasComEntrega
+                                    }}
+                                    modifiersClassNames={{
+                                        hasDelivery: 'bg-green-100 text-green-900 dark:bg-green-900 dark:text-green-100 font-bold'
+                                    }}
+                                    locale={ptBR}
+                                />
+                                <div className="px-4 pb-3 text-xs text-muted-foreground flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded bg-green-500" />
+                                    <span>Dias com entregas</span>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                         <Button
                             onClick={otimizarRota}
                             disabled={otimizando || entregas.length < 2}
