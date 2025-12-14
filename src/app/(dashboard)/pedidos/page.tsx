@@ -126,7 +126,7 @@ function PedidosContent() {
     function openWhatsApp(whatsapp: string, nome: string) {
         const number = whatsapp.replace(/\D/g, '')
         const message = `👋 Olá ${nome}! Aqui é da *Lu Festas* 🎉\n\nComo posso ajudar?`
-        window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
+        window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
     }
 
     return (

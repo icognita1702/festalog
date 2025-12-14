@@ -204,7 +204,7 @@ export default function WhatsAppPage() {
 
         const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
         const message = encodeURIComponent(mensagemFinal)
-        window.open(`https://wa.me/55${number}?text=${message}`, '_blank')
+        window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${message}`, '_blank')
     }
 
     const pedido = pedidos.find(p => p.id === pedidoSelecionado)

@@ -131,7 +131,7 @@ export default function PedidoDetalhesPage() {
                         `Obrigado e até a próxima! 🙏`
                     )
                     const number = pedido.clientes.whatsapp.replace(/\D/g, '')
-                    window.open(`https://wa.me/55${number}?text=${mensagem}`, '_blank')
+                    window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${mensagem}`, '_blank')
                 }
             }
         }
@@ -463,7 +463,7 @@ export default function PedidoDetalhesPage() {
         if (!pedido) return
         const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
         const message = `👋 Olá ${pedido.clientes?.nome}!\n\nAqui é da *Lu Festas* 🎉\n\nComo posso ajudar?`
-        window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
+        window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
     }
 
     async function enviarContratoWhatsApp() {
@@ -680,7 +680,7 @@ export default function PedidoDetalhesPage() {
                 `Banco: CORA SCD\n\n` +
                 `🎉 *Lu Festas* - Tornando seus momentos especiais!`
 
-            window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
+            window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
 
             // Atualizar status
             await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)

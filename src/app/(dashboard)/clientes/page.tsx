@@ -154,7 +154,7 @@ export default function ClientesPage() {
 
     function openWhatsApp(whatsapp: string) {
         const number = whatsapp.replace(/\D/g, '')
-        window.open(`https://wa.me/55${number}`, '_blank')
+        window.open(`https://api.whatsapp.com/send?phone=55${number}`, '_blank')
     }
 
     return (

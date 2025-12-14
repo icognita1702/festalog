@@ -196,7 +196,7 @@ export default function RotasPage() {
             `Estamos a caminho para a entrega!\n\n` +
             `📍 Endereço: ${endereco}\n\n` +
             `Por favor, aguarde nossa chegada! ✅`
-        window.open(`https://wa.me/55${number}?text=${encodeURIComponent(message)}`, '_blank')
+        window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
     }
 
     return (
