@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
+import {
     MapPin,
     Navigation,
     Loader2,
@@ -14,7 +22,8 @@ import {
     ExternalLink,
     RefreshCw,
     MessageCircle,
-    Mail
+    Mail,
+    AlertTriangle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -44,6 +53,10 @@ export default function RotasPage() {
     const [rotaOtimizada, setRotaOtimizada] = useState(false)
     const [tempoTotal, setTempoTotal] = useState<number | null>(null)
     const [distanciaTotal, setDistanciaTotal] = useState<number | null>(null)
+    const [modoOrdenacao, setModoOrdenacao] = useState<'horario' | 'distancia'>('horario')
+    const [showConflictDialog, setShowConflictDialog] = useState(false)
+    const [entregasOtimizadas, setEntregasOtimizadas] = useState<Entrega[]>([])
+    const [conflitos, setConflitos] = useState<string[]>([])
 
     const enderecoLoja = process.env.NEXT_PUBLIC_LOJA_ENDERECO || 'Rua Ariramba 121, BH - MG'
     const [whatsappProprietario, setWhatsappProprietario] = useState('5531982290789')
@@ -71,18 +84,19 @@ export default function RotasPage() {
         setRotaOtimizada(false)
         setTempoTotal(null)
         setDistanciaTotal(null)
+        setModoOrdenacao('horario')
 
         const { data, error } = await supabase
             .from('pedidos')
             .select('*, clientes(*)')
             .eq('data_evento', dataRota)
             .in('status', ['assinado', 'pago_50']) // Pedidos confirmados que precisam de entrega
-            .order('created_at')
+            .order('hora_entrega') // ORDER BY DELIVERY TIME
 
         if (error) {
             console.error('Erro ao carregar entregas:', error)
         } else {
-            setEntregas((data as PedidoComCliente[])?.map(p => ({ pedido: p })) || [])
+            setEntregas((data as PedidoComCliente[])?.map((p, i) => ({ pedido: p, ordem: i + 1 })) || [])
         }
         setLoading(false)
     }
@@ -92,6 +106,44 @@ export default function RotasPage() {
             loadEntregas()
         }
     }, [dataRota])
+
+    function formatarHora(hora: string | null | undefined): string {
+        if (!hora) return '--:--'
+        // hora_entrega is stored as "HH:MM" or "HH:MM:SS"
+        return hora.substring(0, 5)
+    }
+
+    // Helper to get hora_entrega from pedido (type cast needed as field may not be in generated types)
+    function getHoraEntrega(pedido: PedidoComCliente): string | null {
+        return (pedido as any).hora_entrega || null
+    }
+
+    // Check if optimization would change delivery order and cause time conflicts
+    function detectarConflitos(entregasOriginais: Entrega[], entregasReordenadas: Entrega[]): string[] {
+        const conflitosDetectados: string[] = []
+
+        for (let i = 0; i < entregasReordenadas.length; i++) {
+            const entregaAtual = entregasReordenadas[i]
+            const horaAtual = getHoraEntrega(entregaAtual.pedido) || '00:00'
+
+            // Check if any earlier delivery (in optimized order) has a later scheduled time
+            for (let j = i + 1; j < entregasReordenadas.length; j++) {
+                const entregaPosterior = entregasReordenadas[j]
+                const horaPosterior = getHoraEntrega(entregaPosterior.pedido) || '00:00'
+
+                // If an earlier position has later time than a later position, there's conflict
+                if (horaAtual > horaPosterior) {
+                    const nomeAtual = entregaAtual.pedido.clientes?.nome || 'Cliente'
+                    const nomePosterior = entregaPosterior.pedido.clientes?.nome || 'Cliente'
+                    conflitosDetectados.push(
+                        `${nomeAtual} (${formatarHora(horaAtual)}) será entregue antes de ${nomePosterior} (${formatarHora(horaPosterior)})`
+                    )
+                }
+            }
+        }
+
+        return conflitosDetectados
+    }
 
     async function otimizarRota() {
         if (entregas.length < 2) {
@@ -110,7 +162,6 @@ export default function RotasPage() {
                 })
                 const data = await res.json()
                 if (data && data.length > 0) {
-                    // Nominatim retorna [lat, lon], precisamos inverter para [lon, lat]
                     return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
                 }
                 return null
@@ -124,14 +175,7 @@ export default function RotasPage() {
                         ? enderecoOriginal
                         : `${enderecoOriginal}, Belo Horizonte, MG, Brasil`
 
-                    console.log('Geocoding:', endereco)
-                    const coords = await geocode(endereco)
-                    if (coords) {
-                        console.log('Resultado:', endereco, '→', coords)
-                    } else {
-                        console.warn('Não encontrou:', endereco)
-                    }
-                    return coords
+                    return await geocode(endereco)
                 })
             )
 
@@ -144,52 +188,78 @@ export default function RotasPage() {
                 setOtimizando(false)
                 return
             }
-            console.log('Loja:', lojaEndereco, '→', lojaCoord)
 
-            // Filtrar coordenadas válidas
-            const coordsValidas = coordenadas.filter((c): c is number[] => c !== null)
+            // Filtrar coordenadas válidas e manter índices
+            const entregasComCoords = entregas
+                .map((e, i) => ({ entrega: e, coords: coordenadas[i], index: i }))
+                .filter((item): item is { entrega: Entrega; coords: number[]; index: number } => item.coords !== null)
 
-            if (coordsValidas.length < 1) {
+            if (entregasComCoords.length < 1) {
                 alert('Não foi possível geocodificar os endereços. Verifique se estão corretos.')
                 setOtimizando(false)
                 return
             }
 
-            // Construir array de coordenadas: loja -> entregas -> loja
-            const allCoords = [lojaCoord, ...coordsValidas, lojaCoord]
-
-            console.log('=== ROTA CALCULADA ===')
-            console.log(`Total de pontos: ${allCoords.length} (Loja + ${coordsValidas.length} entregas + Volta)`)
-
-            // Usar OSRM para calcular rota - 100% GRATUITO
-            // Formato: lon,lat;lon,lat;...
+            // Use OSRM Trip endpoint for optimization (traveling salesman)
+            const allCoords = [lojaCoord, ...entregasComCoords.map(e => e.coords)]
             const osrmCoords = allCoords.map(c => `${c[0]},${c[1]}`).join(';')
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${osrmCoords}?overview=false`
 
-            console.log('OSRM URL:', osrmUrl)
+            // Use trip endpoint with roundtrip=true, source=first (start from store)
+            const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${osrmCoords}?source=first&roundtrip=true&overview=false`
+
             const osrmRes = await fetch(osrmUrl)
             const osrmData = await osrmRes.json()
 
-            console.log('OSRM result:', osrmData)
+            if (osrmData.code === 'Ok' && osrmData.trips && osrmData.trips.length > 0) {
+                const trip = osrmData.trips[0]
+                const tempoMinutos = Math.round(trip.duration / 60)
+                const distanciaKm = Math.round(trip.distance / 100) / 10
 
-            if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
-                const route = osrmData.routes[0]
-                // OSRM retorna duration em segundos e distance em metros
-                const tempoMinutos = Math.round(route.duration / 60)
-                const distanciaKm = Math.round(route.distance / 100) / 10
+                // Get optimized order from waypoints (skip first which is the store)
+                const waypoints = osrmData.waypoints.slice(1) // Remove store waypoint
+                const novaOrdem = waypoints.map((wp: { waypoint_index: number }) => wp.waypoint_index - 1)
 
-                console.log(`OSRM - Tempo: ${tempoMinutos} min, Distância: ${distanciaKm} km`)
+                // Reorder deliveries based on optimization
+                const entregasReordenadas = novaOrdem
+                    .filter((idx: number) => idx >= 0 && idx < entregasComCoords.length)
+                    .map((idx: number, ordem: number) => ({
+                        ...entregasComCoords[idx].entrega,
+                        ordem: ordem + 1
+                    }))
 
-                // Reordenar entregas (OSRM não otimiza, mantém a ordem)
-                // Se quiser otimizar, usar OSRM trip endpoint
-                setEntregas(entregas.map((e, i) => ({ ...e, ordem: i })))
+                // Detect conflicts with scheduled times
+                const conflitosDetectados = detectarConflitos(entregas, entregasReordenadas)
 
-                setTempoTotal(tempoMinutos)
-                setDistanciaTotal(distanciaKm)
-                setRotaOtimizada(true)
+                if (conflitosDetectados.length > 0) {
+                    // Show warning dialog
+                    setEntregasOtimizadas(entregasReordenadas)
+                    setConflitos(conflitosDetectados)
+                    setShowConflictDialog(true)
+                    // Store calculated values temporarily
+                    setTempoTotal(tempoMinutos)
+                    setDistanciaTotal(distanciaKm)
+                } else {
+                    // No conflicts, apply optimization directly
+                    setEntregas(entregasReordenadas)
+                    setTempoTotal(tempoMinutos)
+                    setDistanciaTotal(distanciaKm)
+                    setRotaOtimizada(true)
+                    setModoOrdenacao('distancia')
+                }
             } else {
-                console.error('OSRM error:', osrmData)
-                alert('Erro ao calcular rota. Verifique os endereços.')
+                // Fallback to regular route calculation if trip fails
+                const routeUrl = `https://router.project-osrm.org/route/v1/driving/${osrmCoords}?overview=false`
+                const routeRes = await fetch(routeUrl)
+                const routeData = await routeRes.json()
+
+                if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+                    const route = routeData.routes[0]
+                    setTempoTotal(Math.round(route.duration / 60))
+                    setDistanciaTotal(Math.round(route.distance / 100) / 10)
+                    setRotaOtimizada(true)
+                } else {
+                    alert('Erro ao calcular rota. Verifique os endereços.')
+                }
             }
         } catch (error) {
             console.error('Erro ao otimizar rota:', error)
@@ -197,6 +267,20 @@ export default function RotasPage() {
         } finally {
             setOtimizando(false)
         }
+    }
+
+    function aplicarOtimizacao() {
+        setEntregas(entregasOtimizadas)
+        setRotaOtimizada(true)
+        setModoOrdenacao('distancia')
+        setShowConflictDialog(false)
+    }
+
+    function manterPorHorario() {
+        // Keep original order, but still show calculated time/distance
+        setRotaOtimizada(true)
+        setModoOrdenacao('horario')
+        setShowConflictDialog(false)
     }
 
     function abrirGoogleMaps() {
@@ -234,7 +318,7 @@ export default function RotasPage() {
         const dataFormatada = format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })
         const message = `🚚 *Rota de Entregas - ${dataFormatada}*\n\n` +
             `📍 ${entregas.length} entrega(s)\n\n` +
-            entregas.map((e, i) => `${i + 1}. ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
+            entregas.map((e, i) => `${i + 1}. ⏰ ${formatarHora(getHoraEntrega(e.pedido))} - ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
             `\n\n🗺️ Abrir rota:\n${url}`
         window.open(`https://api.whatsapp.com/send?phone=${whatsappProprietario}&text=${encodeURIComponent(message)}`, '_blank')
     }
@@ -245,13 +329,51 @@ export default function RotasPage() {
         const dataFormatada = format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })
         const subject = `Rota de Entregas - ${dataFormatada}`
         const body = `Rota com ${entregas.length} entrega(s):\n\n` +
-            entregas.map((e, i) => `${i + 1}. ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
+            entregas.map((e, i) => `${i + 1}. ${formatarHora(getHoraEntrega(e.pedido))} - ${e.pedido.clientes?.nome} - ${e.pedido.clientes?.endereco_completo}`).join('\n') +
             `\n\nAbrir no Google Maps:\n${url}`
         window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
     }
 
     return (
         <div className="space-y-8">
+            {/* Conflict Warning Dialog */}
+            <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-amber-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Atenção: Conflito de Horários
+                        </DialogTitle>
+                        <DialogDescription className="text-left pt-2">
+                            A otimização por menor distância pode causar atrasos nas entregas agendadas:
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                        <div className="rounded-lg bg-amber-50 dark:bg-amber-950 p-4 space-y-2">
+                            {conflitos.map((conflito, i) => (
+                                <p key={i} className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                                    <span>•</span>
+                                    <span>{conflito}</span>
+                                </p>
+                            ))}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-4">
+                            Escolha como deseja organizar a rota:
+                        </p>
+                    </div>
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                        <Button variant="outline" onClick={manterPorHorario} className="flex-1">
+                            <Clock className="mr-2 h-4 w-4" />
+                            Manter por Horário
+                        </Button>
+                        <Button onClick={aplicarOtimizacao} className="flex-1 bg-amber-600 hover:bg-amber-700">
+                            <Navigation className="mr-2 h-4 w-4" />
+                            Otimizar por Distância
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -320,7 +442,7 @@ export default function RotasPage() {
                     </div>
 
                     {rotaOtimizada && tempoTotal !== null && distanciaTotal !== null && (
-                        <div className="mt-4 flex gap-4 rounded-lg bg-green-50 p-4 dark:bg-green-950">
+                        <div className="mt-4 flex flex-wrap gap-4 rounded-lg bg-green-50 p-4 dark:bg-green-950">
                             <div className="flex items-center gap-2">
                                 <Clock className="h-5 w-5 text-green-600" />
                                 <span className="font-medium text-green-700 dark:text-green-400">
@@ -333,6 +455,9 @@ export default function RotasPage() {
                                     Distância: {distanciaTotal > 0 ? `${distanciaTotal} km` : 'Calcular...'}
                                 </span>
                             </div>
+                            <Badge variant={modoOrdenacao === 'horario' ? 'default' : 'secondary'} className="ml-auto">
+                                {modoOrdenacao === 'horario' ? '⏰ Por Horário' : '📍 Por Distância'}
+                            </Badge>
                         </div>
                     )}
                 </CardContent>
@@ -346,6 +471,7 @@ export default function RotasPage() {
                     </CardTitle>
                     <CardDescription>
                         {entregas.length} entrega{entregas.length !== 1 ? 's' : ''} programada{entregas.length !== 1 ? 's' : ''}
+                        {modoOrdenacao === 'horario' && entregas.length > 0 && ' • Ordenado por horário de entrega'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -383,11 +509,15 @@ export default function RotasPage() {
                                     className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50"
                                 >
                                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
-                                        {rotaOtimizada ? entrega.ordem : index + 1}
+                                        {entrega.ordem ?? index + 1}
                                     </div>
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <p className="font-medium">{entrega.pedido.clientes?.nome}</p>
+                                            <Badge variant="outline" className="gap-1">
+                                                <Clock className="h-3 w-3" />
+                                                {formatarHora(getHoraEntrega(entrega.pedido))}
+                                            </Badge>
                                             <Badge variant="secondary">
                                                 {statusLabels[entrega.pedido.status]}
                                             </Badge>
