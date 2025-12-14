@@ -64,7 +64,7 @@ export default function DashboardPage() {
     })
     const [pedidosRecentes, setPedidosRecentes] = useState<PedidoComCliente[]>([])
     const [loading, setLoading] = useState(true)
-    const [datasComPedidos, setDatasComPedidos] = useState<string[]>([])
+    const [pedidosPorData, setPedidosPorData] = useState<Record<string, number>>({})
 
     useEffect(() => {
         async function loadData() {
@@ -115,14 +115,18 @@ export default function DashboardPage() {
 
                 setPedidosRecentes((pedidos as PedidoComCliente[]) || [])
 
-                // Carregar datas com pedidos para destacar no calendário
+                // Carregar contagem de pedidos por data para o calendário
                 const { data: todasDatas } = await supabase
                     .from('pedidos')
                     .select('data_evento')
                     .not('status', 'eq', 'orcamento')
 
                 if (todasDatas) {
-                    setDatasComPedidos(todasDatas.map(p => p.data_evento))
+                    const contagem: Record<string, number> = {}
+                    todasDatas.forEach(p => {
+                        contagem[p.data_evento] = (contagem[p.data_evento] || 0) + 1
+                    })
+                    setPedidosPorData(contagem)
                 }
             } catch (error) {
                 console.error('Erro ao carregar dados:', error)
@@ -156,19 +160,27 @@ export default function DashboardPage() {
         }
     }
 
-    // Função para destacar datas com pedidos
+    // Função para destacar datas com pedidos (verde = entregas)
     const modifiers = {
         hasEvent: (day: Date) => {
             const dateStr = format(day, 'yyyy-MM-dd')
-            return datasComPedidos.includes(dateStr)
+            return dateStr in pedidosPorData
         }
     }
 
     const modifiersStyles = {
         hasEvent: {
-            backgroundColor: 'hsl(var(--primary) / 0.2)',
+            backgroundColor: '#22c55e',  // Verde para entregas
+            color: 'white',
             fontWeight: 'bold' as const,
+            borderRadius: '50%',
         }
+    }
+
+    // Função para obter a contagem de pedidos de uma data
+    function getOrderCount(date: Date): number {
+        const dateStr = format(date, 'yyyy-MM-dd')
+        return pedidosPorData[dateStr] || 0
     }
 
     return (
