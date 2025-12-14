@@ -300,7 +300,7 @@ export default function ProdutosPage() {
                                                 <span>Cor</span>
                                             </div>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent position="popper" sideOffset={5}>
                                             {defaultColors.map((color) => (
                                                 <SelectItem key={color} value={color}>
                                                     <div className="flex items-center gap-2">
