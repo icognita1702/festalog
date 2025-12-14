@@ -55,24 +55,24 @@ const EMOJI = {
 
 const templates: Record<TemplateType, { titulo: string; icone: React.ReactNode; mensagem: string }> = {
     orcamento: {
-        titulo: 'Confirmar Orcamento',
+        titulo: 'Confirmar Orçamento',
         icone: <FileText className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.wave}
+        mensagem: `Olá {nome}! ${EMOJI.wave}
 
-Tudo bem? Aqui e da *Lu Festas*.
+Tudo bem? Aqui é da *Lu Festas*.
 
-Segue o orcamento solicitado:
+Segue o orçamento solicitado:
 ${EMOJI.calendar} Data do evento: {data_evento}
 ${EMOJI.money} Valor total: {total}
 
-Deseja confirmar a locacao? Assim podemos enviar o contrato! ${EMOJI.memo}`,
+Deseja confirmar a locação? Assim podemos enviar o contrato! ${EMOJI.memo}`,
     },
     contrato: {
         titulo: 'Lembrete de Contrato',
         icone: <FileText className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.wave}
+        mensagem: `Olá {nome}! ${EMOJI.wave}
 
-Aqui e da *Lu Festas*! ${EMOJI.party}
+Aqui é da *Lu Festas*! ${EMOJI.party}
 
 Passando para lembrar sobre o contrato do seu evento:
 
@@ -80,14 +80,14 @@ ${EMOJI.calendar} Data do evento: {data_evento}
 ${EMOJI.money} Valor total: {total}
 ${EMOJI.card} Sinal (50%): {valor_sinal}
 
-Voce ja pode assinar o contrato e garantir sua reserva! ${EMOJI.memo}
+Você já pode assinar o contrato e garantir sua reserva! ${EMOJI.memo}
 
 Confirma que posso enviar o contrato para assinatura? ${EMOJI.check}`,
     },
     cobranca: {
         titulo: 'Cobrar Sinal (50%)',
         icone: <DollarSign className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.wave}
+        mensagem: `Olá {nome}! ${EMOJI.wave}
 
 Passando para lembrar sobre o sinal do seu pedido na *Lu Festas*:
 
@@ -99,49 +99,49 @@ Chave PIX CNPJ: 46.446.131/0001-06
 Nome: GABRIEL LUCAS
 Banco: CORA SCD
 
-Apos o pagamento, envie o comprovante por aqui! ${EMOJI.check}`,
+Após o pagamento, envie o comprovante por aqui! ${EMOJI.check}`,
     },
     entrega: {
         titulo: 'Aviso de Entrega',
         icone: <Truck className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.truck}
+        mensagem: `Olá {nome}! ${EMOJI.truck}
 
-Aqui e da *Lu Festas*! Estamos a caminho com sua entrega!
+Aqui é da *Lu Festas*! Estamos a caminho com sua entrega!
 
-${EMOJI.pin} Endereco: {endereco}
-${EMOJI.clock} Previsao: Em breve!
+${EMOJI.pin} Endereço: {endereco}
+${EMOJI.clock} Previsão: Em breve!
 
-Por favor, certifique-se de que havera alguem para receber.
+Por favor, certifique-se de que haverá alguém para receber.
 
-Qualquer duvida, e so chamar! ${EMOJI.phone}`,
+Qualquer dúvida, é só chamar! ${EMOJI.phone}`,
     },
     recolhimento: {
         titulo: 'Agendamento de Recolhimento',
         icone: <Package className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.wave}
+        mensagem: `Olá {nome}! ${EMOJI.wave}
 
-Aqui e da *Lu Festas*! Passando para confirmar o *recolhimento* dos materiais amanha!
+Aqui é da *Lu Festas*! Passando para confirmar o *recolhimento* dos materiais amanhã!
 
-${EMOJI.pin} Endereco: {endereco}
-${EMOJI.clock} Horario previsto: Manha
+${EMOJI.pin} Endereço: {endereco}
+${EMOJI.clock} Horário previsto: Manhã
 
 Por favor, deixe os itens organizados para facilitar o recolhimento.
 
-Agradecemos a preferencia! ${EMOJI.party}`,
+Agradecemos a preferência! ${EMOJI.party}`,
     },
     avaliacao: {
-        titulo: 'Pedir Avaliacao',
+        titulo: 'Pedir Avaliação',
         icone: <Star className="h-5 w-5" />,
-        mensagem: `Ola {nome}! ${EMOJI.party}
+        mensagem: `Olá {nome}! ${EMOJI.party}
 
 Obrigado por escolher a *Lu Festas* para seu evento!
 
 Ficamos muito felizes em fazer parte desse momento especial. ${EMOJI.sparkles}
 
-Se voce gostou do nosso servico, nos ajude com uma avaliacao de 5 estrelas:
+Se você gostou do nosso serviço, nos ajude com uma avaliação de 5 estrelas:
 ${EMOJI.star} {link_google}
 
-Sua opiniao e muito importante para nos! ${EMOJI.heart}`,
+Sua opinião é muito importante para nós! ${EMOJI.heart}`,
     },
 }
 
