@@ -28,24 +28,19 @@ export interface ExtractionResult {
 // ============ Preprocessing ============
 
 /**
- * Limpa e comprime a conversa para economizar tokens
+ * Limpa e normaliza a conversa do WhatsApp
+ * Formato esperado: [HH:MM, DD/MM/YYYY] Nome: Mensagem
  */
 export function preprocessConversation(rawConversation: string): string {
     let cleaned = rawConversation
 
-    // Remove timestamps no formato [HH:MM] ou HH:MM -
-    cleaned = cleaned.replace(/\[\d{1,2}:\d{2}\]/g, '')
-    cleaned = cleaned.replace(/\d{1,2}:\d{2}\s*-\s*/g, '')
-
-    // Remove datas no formato DD/MM/YYYY ou DD/MM/YY no início de linhas
-    cleaned = cleaned.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/gm, '')
+    // Normaliza quebras de linha
+    cleaned = cleaned.replace(/\r\n/g, '\n')
 
     // Remove indicadores de mídia
-    cleaned = cleaned.replace(/<Mídia oculta>/gi, '[ÁUDIO/IMAGEM]')
-    cleaned = cleaned.replace(/\[.*?(sticker|figurinha|imagem|foto|vídeo|video|áudio|audio).*?\]/gi, '')
-
-    // Remove emojis decorativos repetidos (mantém um de cada)
-    cleaned = cleaned.replace(/([\u{1F300}-\u{1F9FF}])\1+/gu, '$1')
+    cleaned = cleaned.replace(/<Mídia oculta>/gi, '[MÍDIA]')
+    cleaned = cleaned.replace(/imagem ocultada/gi, '[IMAGEM]')
+    cleaned = cleaned.replace(/\[.*?(sticker|figurinha|imagem|foto|vídeo|video|áudio|audio).*?\]/gi, '[MÍDIA]')
 
     // Remove linhas vazias múltiplas
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n')
@@ -60,81 +55,113 @@ export function preprocessConversation(rawConversation: string): string {
 }
 
 /**
+ * Identifica quem é o cliente e quem é a loja baseado no contexto
+ */
+function identifyParticipants(conversation: string): { loja: string | null, cliente: string | null } {
+    // Extrai todos os nomes de remetentes
+    const senderPattern = /\[\d{2}:\d{2}, \d{2}\/\d{2}\/\d{4}\] ([^:]+):/g
+    const senders = new Map<string, number>()
+
+    let match
+    while ((match = senderPattern.exec(conversation)) !== null) {
+        const name = match[1].trim()
+        senders.set(name, (senders.get(name) || 0) + 1)
+    }
+
+    // Se há apenas 2 participantes
+    if (senders.size === 2) {
+        const [first, second] = Array.from(senders.entries())
+        // O cliente geralmente menciona "quero", "preciso", "alugar", etc.
+        // A loja geralmente responde com preços, confirmações
+        return { loja: null, cliente: null } // Deixa a IA decidir
+    }
+
+    return { loja: null, cliente: null }
+}
+
+/**
  * Estima quantidade de tokens (aproximação: 1 token ≈ 4 caracteres em PT)
  */
 export function estimateTokens(text: string): number {
     return Math.ceil(text.length / 4)
 }
 
-/**
- * Divide conversa em chunks se muito longa
- */
-export function chunkConversation(conversation: string, maxTokens: number = 5000): string[] {
-    const tokens = estimateTokens(conversation)
-
-    if (tokens <= maxTokens) {
-        return [conversation]
-    }
-
-    // Divide por quebras de linha duplas (mudanças de contexto)
-    const paragraphs = conversation.split(/\n\n+/)
-    const chunks: string[] = []
-    let currentChunk = ''
-
-    for (const para of paragraphs) {
-        const testChunk = currentChunk + '\n\n' + para
-        if (estimateTokens(testChunk) > maxTokens && currentChunk) {
-            chunks.push(currentChunk.trim())
-            currentChunk = para
-        } else {
-            currentChunk = testChunk
-        }
-    }
-
-    if (currentChunk.trim()) {
-        chunks.push(currentChunk.trim())
-    }
-
-    return chunks
-}
-
 // ============ Prompt Engineering ============
 
-const SYSTEM_PROMPT = `Você é um assistente especializado em extrair dados de conversas entre uma empresa de aluguel de materiais para festas (Lu Festas) e seus clientes.
+const SYSTEM_PROMPT = `Você é um assistente especializado em extrair dados de conversas do WhatsApp entre uma empresa de aluguel de materiais para festas (Lu Festas/Filipe) e seus clientes.
+
+## FORMATO DAS MENSAGENS:
+As mensagens seguem o padrão: [HH:MM, DD/MM/YYYY] Nome do Remetente: Texto da mensagem
+
+## IDENTIFICAÇÃO:
+- A LOJA é identificada por nomes como: Filipe, Lu Festas, Lú, etc.
+- O CLIENTE é a outra pessoa na conversa
 
 ## Regras IMPORTANTES:
-1. Extraia APENAS informações EXPLICITAMENTE mencionadas na conversa
+1. Extraia APENAS informações EXPLICITAMENTE mencionadas
 2. Use null para dados NÃO ENCONTRADOS (não invente)
 3. Normalize telefones para formato: 5531XXXXXXXXX (sem espaços ou símbolos)
 4. Datas no formato: YYYY-MM-DD
-5. Valores monetários como números (sem R$, sem vírgula)
-6. O campo "confianca" deve ser um número de 0 a 1 indicando sua certeza
+5. Valores monetários como números (sem R$)
+6. O campo "confianca" deve ser 0.0 a 1.0 indicando sua certeza
 
-## Exemplo de Conversa:
-Cliente: Oi, boa tarde! Vocês alugam mesa?
-Loja: Olá! Sim, temos mesas redondas e retangulares.
-Cliente: Preciso de 5 mesas redondas e 20 cadeiras para dia 20/01
-Loja: Perfeito! Qual o endereço?
-Cliente: Rua das Flores, 123 - Pampulha, BH. Meu nome é Maria Silva, telefone 31 98765-4321
+## EXEMPLO 1:
+Conversa:
+[23:03, 13/12/2025] Felipe Nominato: Meu nome é Felipe
+[23:03, 13/12/2025] Felipe Nominato: quero alugar 20 jogos de mesa e 4 toalhas
+[23:04, 13/12/2025] Felipe Nominato: Para amanhã às 13 horas da tarde.
+[23:04, 13/12/2025] Felipe Nominato: Pagarei no pix o valor de 50%
+[23:08, 13/12/2025] Filipe Elienai Santos Souza: Olá, ok.
+[00:09, 14/12/2025] Felipe Nominato: moro na rua ariramba 121, alipio de melo.
+[00:09, 14/12/2025] Felipe Nominato: meu numero é 31982290789
 
-## Extração Correta do Exemplo:
+Extração:
 {
   "cliente": {
-    "nome": "Maria Silva",
-    "telefone": "5531987654321",
-    "endereco": "Rua das Flores, 123 - Pampulha, BH",
+    "nome": "Felipe Nominato",
+    "telefone": "5531982290789",
+    "endereco": "Rua Ariramba 121, Alípio de Melo",
     "email": null
   },
   "pedido": {
-    "data_evento": "2025-01-20",
-    "hora_evento": null,
-    "itens": ["5 mesas redondas", "20 cadeiras"],
+    "data_evento": "2025-12-14",
+    "hora_evento": "13:00",
+    "itens": ["20 jogos de mesa", "4 toalhas"],
     "tipo_festa": null,
+    "observacoes": "Pagamento 50% no PIX",
+    "valor_estimado": null
+  },
+  "confianca": 0.95,
+  "resumo": "Felipe quer alugar mesas e toalhas para 14/12 às 13h. Endereço: Alípio de Melo."
+}
+
+## EXEMPLO 2:
+Conversa:
+[10:30, 15/12/2025] Maria Clara: Oi bom dia! Vocês fazem entrega?
+[10:32, 15/12/2025] Lu Festas: Olá Maria! Fazemos sim. Qual seria a data?
+[10:33, 15/12/2025] Maria Clara: Dia 20/12, festa de aniversário da minha filha
+[10:35, 15/12/2025] Maria Clara: Preciso de 10 mesas e 40 cadeiras
+[10:40, 15/12/2025] Lu Festas: Perfeito! Qual o endereço?
+[10:42, 15/12/2025] Maria Clara: Rua das Flores 456, bairro Centro
+
+Extração:
+{
+  "cliente": {
+    "nome": "Maria Clara",
+    "telefone": null,
+    "endereco": "Rua das Flores 456, Centro",
+    "email": null
+  },
+  "pedido": {
+    "data_evento": "2025-12-20",
+    "hora_evento": null,
+    "itens": ["10 mesas", "40 cadeiras"],
+    "tipo_festa": "Aniversário infantil",
     "observacoes": null,
     "valor_estimado": null
   },
   "confianca": 0.9,
-  "resumo": "Cliente Maria Silva solicita 5 mesas e 20 cadeiras para 20/01 na Pampulha."
+  "resumo": "Maria Clara quer mesas e cadeiras para aniversário dia 20/12 no Centro."
 }`
 
 function buildExtractionPrompt(conversation: string): string {
@@ -143,18 +170,18 @@ function buildExtractionPrompt(conversation: string): string {
 ## CONVERSA PARA ANALISAR:
 ${conversation}
 
-## INSTRUÇÕES FINAIS:
-- Analise cuidadosamente toda a conversa
-- Extraia todos os dados relevantes
-- Se houver múltiplas datas, use a data do EVENTO (não a data da conversa)
-- Responda APENAS com JSON válido, sem texto adicional
-- O resumo deve ter no máximo 100 caracteres`
+## INSTRUÇÕES:
+1. Identifique quem é o CLIENTE (quem está pedindo orçamento/aluguel)
+2. Extraia todos os dados disponíveis
+3. Se a data mencionar "amanhã", calcule baseado na data das mensagens
+4. Responda APENAS com JSON válido, sem texto antes ou depois
+5. O resumo deve ter no máximo 120 caracteres`
 }
 
 // ============ Extraction ============
 
 /**
- * Extrai dados da conversa usando Gemini AI
+ * Extrai dados da conversa usando Gemini 2.0
  */
 export async function extractDataFromConversation(
     conversation: string,
@@ -163,14 +190,9 @@ export async function extractDataFromConversation(
     // Preprocessa
     const cleaned = preprocessConversation(conversation)
 
-    // Verifica tamanho
-    const tokens = estimateTokens(cleaned)
-    if (tokens > 6000) {
-        // Usa apenas a parte mais recente (geralmente tem mais dados)
-        const chunks = chunkConversation(cleaned, 5000)
-        // Pega os últimos 2 chunks (mais recentes)
-        const relevantPart = chunks.slice(-2).join('\n\n---\n\n')
-        return await callGemini(relevantPart, apiKey)
+    // Verifica se há conteúdo
+    if (cleaned.length < 30) {
+        return emptyResult('Conversa muito curta')
     }
 
     return await callGemini(cleaned, apiKey)
@@ -178,11 +200,13 @@ export async function extractDataFromConversation(
 
 async function callGemini(conversation: string, apiKey: string): Promise<ExtractionResult> {
     const genAI = new GoogleGenerativeAI(apiKey)
+
+    // Usa Gemini 2.0 Flash para melhores resultados
     const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash-exp',
         generationConfig: {
             temperature: 0.1, // Baixa temperatura = mais determinístico
-            maxOutputTokens: 1000,
+            maxOutputTokens: 1500,
         }
     })
 
@@ -192,39 +216,55 @@ async function callGemini(conversation: string, apiKey: string): Promise<Extract
         const result = await model.generateContent(prompt)
         const response = result.response.text()
 
-        // Extrai JSON da resposta (pode vir com markdown)
-        const jsonMatch = response.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) {
-            throw new Error('Resposta não contém JSON válido')
+        console.log('[Gemini] Resposta bruta:', response.substring(0, 500))
+
+        // Extrai JSON da resposta (pode vir com markdown ```json...```)
+        let jsonStr = response
+
+        // Remove markdown code blocks se presentes
+        const jsonBlockMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/)
+        if (jsonBlockMatch) {
+            jsonStr = jsonBlockMatch[1]
+        } else {
+            // Tenta encontrar o objeto JSON diretamente
+            const jsonMatch = response.match(/\{[\s\S]*\}/)
+            if (jsonMatch) {
+                jsonStr = jsonMatch[0]
+            }
         }
 
-        const parsed = JSON.parse(jsonMatch[0]) as ExtractionResult
+        const parsed = JSON.parse(jsonStr.trim()) as ExtractionResult
 
         // Validação básica
         if (!parsed.cliente || !parsed.pedido) {
-            throw new Error('Estrutura de resposta inválida')
+            console.error('[Gemini] Estrutura inválida:', parsed)
+            return emptyResult('Estrutura de resposta inválida')
         }
 
         // Normaliza dados
         return normalizeExtraction(parsed)
 
     } catch (error) {
-        console.error('Erro ao chamar Gemini:', error)
+        console.error('[Gemini] Erro ao processar:', error)
 
         // Retorna estrutura vazia em caso de erro
-        return {
-            cliente: { nome: null, telefone: null, endereco: null, email: null },
-            pedido: {
-                data_evento: null,
-                hora_evento: null,
-                itens: [],
-                tipo_festa: null,
-                observacoes: null,
-                valor_estimado: null
-            },
-            confianca: 0,
-            resumo: 'Erro ao analisar conversa'
-        }
+        return emptyResult('Erro ao analisar conversa')
+    }
+}
+
+function emptyResult(resumo: string): ExtractionResult {
+    return {
+        cliente: { nome: null, telefone: null, endereco: null, email: null },
+        pedido: {
+            data_evento: null,
+            hora_evento: null,
+            itens: [],
+            tipo_festa: null,
+            observacoes: null,
+            valor_estimado: null
+        },
+        confianca: 0,
+        resumo
     }
 }
 
@@ -245,19 +285,20 @@ function normalizeExtraction(data: ExtractionResult): ExtractionResult {
 
     // Valida data (deve ser futura ou próxima)
     if (data.pedido.data_evento) {
-        const eventDate = new Date(data.pedido.data_evento)
-        const today = new Date()
-        const oneYearFromNow = new Date()
-        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1)
+        // Se vier no formato DD/MM/YYYY, converte
+        if (data.pedido.data_evento.includes('/')) {
+            const [dia, mes, ano] = data.pedido.data_evento.split('/')
+            data.pedido.data_evento = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`
+        }
 
-        if (eventDate < today || eventDate > oneYearFromNow) {
-            // Data suspeita - pode ser erro de ano
-            const correctedDate = new Date(data.pedido.data_evento)
-            correctedDate.setFullYear(today.getFullYear())
-            if (correctedDate < today) {
-                correctedDate.setFullYear(today.getFullYear() + 1)
-            }
-            data.pedido.data_evento = correctedDate.toISOString().split('T')[0]
+        const eventDate = new Date(data.pedido.data_evento + 'T12:00:00')
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        // Se a data é do passado (provavelmente ano errado), ajusta para o próximo ano
+        if (eventDate < today) {
+            eventDate.setFullYear(eventDate.getFullYear() + 1)
+            data.pedido.data_evento = eventDate.toISOString().split('T')[0]
         }
     }
 
@@ -268,6 +309,11 @@ function normalizeExtraction(data: ExtractionResult): ExtractionResult {
 
     // Limita confiança entre 0 e 1
     data.confianca = Math.max(0, Math.min(1, data.confianca || 0))
+
+    // Garante que resumo existe
+    if (!data.resumo) {
+        data.resumo = 'Dados extraídos com sucesso'
+    }
 
     return data
 }
