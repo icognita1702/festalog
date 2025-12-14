@@ -201,24 +201,58 @@ export async function extractDataFromConversation(
 async function callGemini(conversation: string, apiKey: string): Promise<ExtractionResult> {
     const genAI = new GoogleGenerativeAI(apiKey)
 
-    // Usa Gemini 2.0 Flash para melhores resultados
-    const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
-        generationConfig: {
-            temperature: 0.1, // Baixa temperatura = mais determinístico
-            maxOutputTokens: 1500,
+    // Lista de modelos para tentar em ordem de prioridade
+    // Alguns nomes podem mudar ou ser descontinuados, o loop garante resiliência
+    const modelsToTry = [
+        'gemini-1.5-flash-latest', // Tenta versão mais recente
+        'gemini-1.5-flash',        // Tenta nome padrão
+        'gemini-1.5-flash-002',    // Tenta versão específica recente
+        'gemini-1.5-flash-001',    // Tenta versão estável anterior
+        'gemini-1.5-flash-8b',     // Tenta versão leve
+        'gemini-1.5-pro-latest'    // Fallback para Pro se Flash falhar
+    ]
+
+    let lastError = null;
+
+    for (const modelName of modelsToTry) {
+        try {
+            console.log(`[Gemini] Tentando modelo: ${modelName}...`)
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 1500,
+                }
+            })
+
+            const prompt = buildExtractionPrompt(conversation)
+
+            const result = await model.generateContent(prompt)
+            const response = result.response.text()
+
+            console.log(`[Gemini] Sucesso com modelo: ${modelName}`)
+            console.log('[Gemini] Resposta bruta:', response.substring(0, 200) + '...')
+
+            // Parse e retorno
+            return parseGeminiResponse(response)
+
+        } catch (error: any) {
+            console.warn(`[Gemini] Falha com modelo ${modelName}:`, error.message)
+            lastError = error
+            // Continua para o próximo modelo...
         }
-    })
+    }
 
-    const prompt = buildExtractionPrompt(conversation)
+    console.error('[Gemini] Todos os modelos falharam. Último erro:', lastError)
+    return emptyResult('Erro de conexão com IA (verifique quota ou chave)')
+}
 
+/**
+ * Helper para parsear resposta JSON do Gemini
+ */
+function parseGeminiResponse(response: string): ExtractionResult {
     try {
-        const result = await model.generateContent(prompt)
-        const response = result.response.text()
-
-        console.log('[Gemini] Resposta bruta:', response.substring(0, 500))
-
-        // Extrai JSON da resposta (pode vir com markdown ```json...```)
+        // Extrai JSON da resposta (pode vir com markdown)
         let jsonStr = response
 
         // Remove markdown code blocks se presentes
@@ -237,18 +271,13 @@ async function callGemini(conversation: string, apiKey: string): Promise<Extract
 
         // Validação básica
         if (!parsed.cliente || !parsed.pedido) {
-            console.error('[Gemini] Estrutura inválida:', parsed)
             return emptyResult('Estrutura de resposta inválida')
         }
 
-        // Normaliza dados
         return normalizeExtraction(parsed)
-
-    } catch (error) {
-        console.error('[Gemini] Erro ao processar:', error)
-
-        // Retorna estrutura vazia em caso de erro
-        return emptyResult('Erro ao analisar conversa')
+    } catch (e) {
+        console.error('Erro de parse JSON:', e)
+        return emptyResult('Erro ao processar resposta da IA')
     }
 }
 
