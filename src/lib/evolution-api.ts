@@ -25,7 +25,7 @@ interface EvolutionResponse {
 
 export async function enviarMensagem({ number, text }: SendMessageParams): Promise<boolean> {
     try {
-        // Formata o número (remove caracteres especiais e adiciona @s.whatsapp.net)
+        // Formata o número (remove caracteres especiais)
         const formattedNumber = number.replace(/\D/g, '')
 
         const response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
@@ -36,7 +36,9 @@ export async function enviarMensagem({ number, text }: SendMessageParams): Promi
             },
             body: JSON.stringify({
                 number: formattedNumber,
-                text: text,
+                textMessage: {
+                    text: text
+                }
             }),
         })
 
