@@ -145,7 +145,7 @@ Sua opinião é muito importante para nós! ${EMOJI.heart}`,
     },
 }
 
-const linkGoogle = 'https://search.google.com/local/writereview?placeid=ChIJxwcjc99RpgARMzNtT0lyZTE'
+const linkGoogle = 'https://search.google.com/local/writereview?placeid=ChIJxyFz3xGXpgAR8jNtT0lyZTE'
 
 export default function WhatsAppPage() {
     const [pedidos, setPedidos] = useState<PedidoComCliente[]>([])

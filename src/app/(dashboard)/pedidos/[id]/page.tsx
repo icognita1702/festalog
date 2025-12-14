@@ -120,7 +120,7 @@ export default function PedidoDetalhesPage() {
                 )
 
                 if (enviarAvaliacao) {
-                    const googleReviewLink = 'https://search.google.com/local/writereview?placeid=ChIJxwcjc99RpgARMzNtT0lyZTE'
+                    const googleReviewLink = 'https://search.google.com/local/writereview?placeid=ChIJxyFz3xGXpgAR8jNtT0lyZTE'
                     const mensagem = encodeURIComponent(
                         `Olá ${pedido.clientes.nome}! 🎉\n\n` +
                         `Aqui é da *Lu Festas*! Queremos agradecer por escolher nossos serviços.\n\n` +
