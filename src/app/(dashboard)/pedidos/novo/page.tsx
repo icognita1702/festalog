@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
     Select,
     SelectContent,
@@ -23,9 +24,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
+import { ConversationImportDialog } from '@/components/conversation-import-dialog'
+import type { ExtractionResult } from '@/lib/conversation-analyzer'
 
 interface ItemCarrinho {
     produto: Produto
@@ -48,6 +51,8 @@ export default function NovoPedidoPage() {
     const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([])
     const [produtoSelecionado, setProdutoSelecionado] = useState('')
     const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1)
+    const [importedData, setImportedData] = useState<ExtractionResult | null>(null)
+    const [creatingClient, setCreatingClient] = useState(false)
 
     async function loadData() {
         setLoading(true)
@@ -199,22 +204,146 @@ export default function NovoPedidoPage() {
         )
     }
 
+    // Handler para importar dados da conversa
+    async function handleConversationImport(result: ExtractionResult) {
+        setImportedData(result)
+
+        // Preenche data do evento
+        if (result.pedido.data_evento) {
+            setDataEvento(result.pedido.data_evento)
+        }
+
+        // Preenche hora de entrega
+        if (result.pedido.hora_evento) {
+            setHoraEntrega(result.pedido.hora_evento)
+        }
+
+        // Preenche observações
+        const obs: string[] = []
+        if (result.pedido.tipo_festa) obs.push(`Festa: ${result.pedido.tipo_festa}`)
+        if (result.pedido.itens.length > 0) obs.push(`Itens solicitados: ${result.pedido.itens.join(', ')}`)
+        if (result.pedido.observacoes) obs.push(result.pedido.observacoes)
+        if (obs.length > 0) setObservacoes(obs.join('\n'))
+
+        // Verifica se cliente já existe pelo telefone
+        if (result.cliente.telefone) {
+            const { data: existingClient } = await supabase
+                .from('clientes')
+                .select('id')
+                .eq('telefone', result.cliente.telefone)
+                .single()
+
+            if (existingClient) {
+                setClienteId(existingClient.id)
+                return
+            }
+        }
+
+        // Verifica pelo nome
+        if (result.cliente.nome) {
+            const { data: existingClient } = await supabase
+                .from('clientes')
+                .select('id')
+                .ilike('nome', result.cliente.nome)
+                .single()
+
+            if (existingClient) {
+                setClienteId(existingClient.id)
+                return
+            }
+        }
+    }
+
+    // Cria cliente a partir dos dados importados
+    async function createClientFromImport() {
+        if (!importedData?.cliente.nome) {
+            alert('Nome do cliente não foi extraído da conversa')
+            return
+        }
+
+        setCreatingClient(true)
+
+        try {
+            const clientData = {
+                nome: importedData.cliente.nome!,
+                telefone: importedData.cliente.telefone || undefined,
+                endereco: importedData.cliente.endereco || undefined,
+            }
+
+            const { data: newClient, error } = await (supabase as any)
+                .from('clientes')
+                .insert(clientData)
+                .select()
+                .single()
+
+            if (error) throw error
+
+            // Atualiza lista de clientes e seleciona o novo
+            setClientes([...clientes, newClient])
+            setClienteId(newClient.id)
+            setImportedData(null)
+
+        } catch (error) {
+            console.error('Erro ao criar cliente:', error)
+            alert('Erro ao criar cliente')
+        } finally {
+            setCreatingClient(false)
+        }
+    }
+
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <Button asChild variant="ghost" size="icon">
-                    <Link href="/pedidos">
-                        <ArrowLeft className="h-4 w-4" />
-                    </Link>
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Novo Pedido</h1>
-                    <p className="text-muted-foreground">
-                        Crie um novo pedido de locação
-                    </p>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button asChild variant="ghost" size="icon">
+                        <Link href="/pedidos">
+                            <ArrowLeft className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Novo Pedido</h1>
+                        <p className="text-muted-foreground">
+                            Crie um novo pedido de locação
+                        </p>
+                    </div>
                 </div>
+                <ConversationImportDialog onImport={handleConversationImport} />
             </div>
+
+            {/* Alerta de dados importados */}
+            {importedData && !clienteId && importedData.cliente.nome && (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                    <Sparkles className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="flex items-center justify-between">
+                        <span>
+                            Cliente <strong>{importedData.cliente.nome}</strong> não encontrado.
+                        </span>
+                        <Button
+                            size="sm"
+                            onClick={createClientFromImport}
+                            disabled={creatingClient}
+                            className="gap-2"
+                        >
+                            {creatingClient ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Plus className="h-4 w-4" />
+                            )}
+                            Criar Cliente
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {importedData && clienteId && (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription>
+                        ✅ Dados importados com sucesso! Confira as informações abaixo.
+                    </AlertDescription>
+                </Alert>
+            )}
 
             <form onSubmit={handleSubmit} className="grid gap-8 lg:grid-cols-3">
                 {/* Dados do Pedido */}
