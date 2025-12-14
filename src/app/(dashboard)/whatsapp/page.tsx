@@ -365,80 +365,33 @@ export default function WhatsAppPage() {
                             </div>
                         )}
 
-                        {/* Status de envio */}
-                        {sendStatus === 'success' && (
-                            <div className="flex items-center gap-2 rounded-lg bg-green-100 p-3 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                <CheckCircle2 className="h-5 w-5" />
-                                <span className="font-medium">Mensagem enviada com sucesso!</span>
-                            </div>
-                        )}
-
-                        {sendStatus === 'error' && (
-                            <div className="flex items-center gap-2 rounded-lg bg-red-100 p-3 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                                <XCircle className="h-5 w-5" />
-                                <span className="font-medium">{errorMessage}</span>
-                            </div>
-                        )}
-
-                        <div className="space-y-3">
-                            {/* Botão principal - Envio direto */}
+                        <div className="flex gap-3">
                             <Button
-                                className="w-full bg-green-600 hover:bg-green-700"
-                                onClick={enviarDireto}
-                                disabled={!mensagemFinal || !pedidoSelecionado || sendStatus === 'sending'}
+                                variant="outline"
+                                className="flex-1"
+                                onClick={copiarMensagem}
+                                disabled={!mensagemFinal}
                             >
-                                {sendStatus === 'sending' ? (
+                                {copiado ? (
                                     <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Enviando...
-                                    </>
-                                ) : sendStatus === 'success' ? (
-                                    <>
-                                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                                        Enviado!
+                                        <Check className="mr-2 h-4 w-4" />
+                                        Copiado!
                                     </>
                                 ) : (
                                     <>
-                                        <Send className="mr-2 h-4 w-4" />
-                                        Enviar Direto (Bot)
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Copiar
                                     </>
                                 )}
                             </Button>
-
-                            {/* Botões secundários */}
-                            <div className="flex gap-3">
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={copiarMensagem}
-                                    disabled={!mensagemFinal}
-                                >
-                                    {copiado ? (
-                                        <>
-                                            <Check className="mr-2 h-4 w-4" />
-                                            Copiado!
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="mr-2 h-4 w-4" />
-                                            Copiar
-                                        </>
-                                    )}
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={enviarWhatsAppWeb}
-                                    disabled={!mensagemFinal || !pedidoSelecionado}
-                                >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    WhatsApp Web
-                                </Button>
-                            </div>
-
-                            <p className="text-xs text-muted-foreground text-center">
-                                💡 "Enviar Direto" usa o bot conectado. "WhatsApp Web" abre no navegador.
-                            </p>
+                            <Button
+                                className="flex-1 bg-green-600 hover:bg-green-700"
+                                onClick={enviarWhatsAppWeb}
+                                disabled={!mensagemFinal || !pedidoSelecionado}
+                            >
+                                <Send className="mr-2 h-4 w-4" />
+                                Enviar ao Cliente
+                            </Button>
                         </div>
                     </CardContent>
                 </Card>
