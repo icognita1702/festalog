@@ -7,25 +7,10 @@ interface SendMessageParams {
     text: string
 }
 
-interface EvolutionResponse {
-    key: {
-        remoteJid: string
-        fromMe: boolean
-        id: string
-    }
-    message: {
-        extendedTextMessage?: {
-            text: string
-        }
-        conversation?: string
-    }
-    messageTimestamp: string
-    status: string
-}
+// ============ Evolution API v2.x Endpoints ============
 
 export async function enviarMensagem({ number, text }: SendMessageParams): Promise<boolean> {
     try {
-        // Formata o número (remove caracteres especiais)
         const formattedNumber = number.replace(/\D/g, '')
 
         const response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
@@ -36,9 +21,7 @@ export async function enviarMensagem({ number, text }: SendMessageParams): Promi
             },
             body: JSON.stringify({
                 number: formattedNumber,
-                textMessage: {
-                    text: text
-                }
+                text: text
             }),
         })
 
@@ -57,6 +40,15 @@ export async function enviarMensagem({ number, text }: SendMessageParams): Promi
 
 export async function criarInstancia(): Promise<{ qrcode?: string; error?: string }> {
     try {
+        // Primeiro, tenta deletar instância existente
+        await fetch(`${EVOLUTION_API_URL}/instance/delete/${EVOLUTION_INSTANCE}`, {
+            method: 'DELETE',
+            headers: {
+                'apikey': EVOLUTION_API_KEY,
+            },
+        }).catch(() => { })
+
+        // Criar nova instância
         const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
             method: 'POST',
             headers: {
@@ -65,18 +57,40 @@ export async function criarInstancia(): Promise<{ qrcode?: string; error?: strin
             },
             body: JSON.stringify({
                 instanceName: EVOLUTION_INSTANCE,
-                qrcode: true,
                 integration: 'WHATSAPP-BAILEYS',
+                qrcode: true,
+                webhook: {
+                    url: 'http://host.docker.internal:3000/api/whatsapp/webhook',
+                    byEvents: false,
+                    base64: true,
+                    events: [
+                        'QRCODE_UPDATED',
+                        'MESSAGES_UPSERT',
+                        'CONNECTION_UPDATE',
+                        'SEND_MESSAGE'
+                    ]
+                }
             }),
         })
 
         const data = await response.json()
+        console.log('Criar instância resposta:', JSON.stringify(data, null, 2))
 
-        if (data.qrcode) {
+        // v2.x retorna o QR no campo qrcode.base64 ou apenas base64
+        if (data.qrcode?.base64) {
             return { qrcode: data.qrcode.base64 }
         }
 
-        return { error: data.message || 'Erro ao criar instância' }
+        if (data.base64) {
+            return { qrcode: data.base64 }
+        }
+
+        // Se a instância foi criada mas não tem QR, buscar
+        if (data.instance || data.hash) {
+            return await obterQRCode()
+        }
+
+        return { error: data.message || data.error || 'Erro ao criar instância' }
     } catch (error) {
         console.error('Erro ao criar instância:', error)
         return { error: 'Erro de conexão com Evolution API' }
@@ -85,24 +99,48 @@ export async function criarInstancia(): Promise<{ qrcode?: string; error?: strin
 
 export async function obterQRCode(): Promise<{ qrcode?: string; connected?: boolean; error?: string }> {
     try {
-        const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${EVOLUTION_INSTANCE}`, {
+        // v2.x: primeiro verifica status
+        const statusResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${EVOLUTION_INSTANCE}`, {
             method: 'GET',
             headers: {
                 'apikey': EVOLUTION_API_KEY,
             },
         })
 
-        const data = await response.json()
+        const statusData = await statusResponse.json()
+        console.log('Status response:', JSON.stringify(statusData, null, 2))
 
-        if (data.base64) {
-            return { qrcode: data.base64 }
-        }
-
-        if (data.instance?.state === 'open') {
+        // Verifica se já está conectado
+        if (statusData.state === 'open' || statusData.instance?.state === 'open') {
             return { connected: true }
         }
 
-        return { error: data.message || 'Instância não encontrada' }
+        // v2.x: endpoint para obter QR code
+        const qrResponse = await fetch(`${EVOLUTION_API_URL}/instance/connect/${EVOLUTION_INSTANCE}`, {
+            method: 'GET',
+            headers: {
+                'apikey': EVOLUTION_API_KEY,
+            },
+        })
+
+        const qrData = await qrResponse.json()
+        console.log('QR response:', JSON.stringify(qrData, null, 2))
+
+        if (qrData.base64) {
+            return { qrcode: qrData.base64 }
+        }
+
+        if (qrData.code) {
+            // Se retornou código texto, converter para QR base64
+            return { qrcode: qrData.code }
+        }
+
+        if (qrData.pairingCode) {
+            // v2.x pode retornar pairing code
+            return { qrcode: `data:image/png;base64,${qrData.pairingCode}` }
+        }
+
+        return { error: qrData.message || 'QR Code não disponível' }
     } catch (error) {
         console.error('Erro ao obter QR Code:', error)
         return { error: 'Erro de conexão com Evolution API' }
@@ -119,10 +157,14 @@ export async function verificarStatus(): Promise<{ connected: boolean; state: st
         })
 
         const data = await response.json()
+        console.log('verificarStatus response:', JSON.stringify(data, null, 2))
+
+        // v2.x pode retornar state diretamente ou dentro de instance
+        const state = data.state || data.instance?.state || 'unknown'
 
         return {
-            connected: data.instance?.state === 'open',
-            state: data.instance?.state || 'unknown',
+            connected: state === 'open',
+            state: state,
         }
     } catch (error) {
         console.error('Erro ao verificar status:', error)
@@ -169,7 +211,6 @@ export interface WebhookMessage {
 }
 
 export function extrairNumeroWhatsApp(remoteJid: string): string {
-    // Remove @s.whatsapp.net do final
     return remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '')
 }
 
