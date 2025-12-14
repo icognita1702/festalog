@@ -24,11 +24,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2, Truck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { ConversationImportDialog } from '@/components/conversation-import-dialog'
 import type { ExtractionResult } from '@/lib/conversation-analyzer'
+import { calculateFreightForAddress } from '@/lib/freight-calculator'
 
 interface ItemCarrinho {
     produto: Produto
@@ -53,6 +54,12 @@ export default function NovoPedidoPage() {
     const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1)
     const [importedData, setImportedData] = useState<ExtractionResult | null>(null)
     const [creatingClient, setCreatingClient] = useState(false)
+
+    // Freight calculation states
+    const [frete, setFrete] = useState(0)
+    const [distanciaKm, setDistanciaKm] = useState(0)
+    const [calculandoFrete, setCalculandoFrete] = useState(false)
+    const [erroFrete, setErroFrete] = useState('')
 
     async function loadData() {
         setLoading(true)
@@ -92,6 +99,44 @@ export default function NovoPedidoPage() {
             setCarrinho([])
         }
     }, [dataEvento])
+
+    // Calculate freight when client is selected
+    useEffect(() => {
+        async function calcularFrete() {
+            if (!clienteId) {
+                setFrete(0)
+                setDistanciaKm(0)
+                setErroFrete('')
+                return
+            }
+
+            const cliente = clientes.find(c => c.id === clienteId)
+            if (!cliente?.endereco_completo) {
+                setFrete(0)
+                setDistanciaKm(0)
+                setErroFrete('Cliente sem endereço cadastrado')
+                return
+            }
+
+            setCalculandoFrete(true)
+            setErroFrete('')
+
+            const result = await calculateFreightForAddress(cliente.endereco_completo)
+
+            if (result) {
+                setFrete(result.freight)
+                setDistanciaKm(result.distanceKm)
+            } else {
+                setFrete(15) // Minimum freight as fallback
+                setDistanciaKm(0)
+                setErroFrete('Não foi possível calcular a distância. Usando frete mínimo.')
+            }
+
+            setCalculandoFrete(false)
+        }
+
+        calcularFrete()
+    }, [clienteId, clientes])
 
     function getDisponivel(produtoId: string): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
@@ -145,7 +190,8 @@ export default function NovoPedidoPage() {
         setCarrinho(newCarrinho)
     }
 
-    const total = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const subtotal = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const total = subtotal + frete
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -167,6 +213,8 @@ export default function NovoPedidoPage() {
                     hora_entrega: horaEntrega,
                     observacoes,
                     total_pedido: total,
+                    frete: frete,
+                    distancia_km: distanciaKm,
                 })
                 .select()
                 .single()
@@ -538,8 +586,42 @@ export default function NovoPedidoPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between text-lg font-bold">
+
+                                    {/* Subtotal */}
+                                    <div className="border-t pt-4 space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Subtotal</span>
+                                            <span>
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}
+                                            </span>
+                                        </div>
+
+                                        {/* Freight */}
+                                        <div className="flex justify-between text-sm">
+                                            <span className="flex items-center gap-1">
+                                                <Truck className="h-3 w-3" />
+                                                Frete
+                                                {distanciaKm > 0 && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        ({distanciaKm} km)
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="flex items-center gap-2">
+                                                {calculandoFrete ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                ) : (
+                                                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(frete)
+                                                )}
+                                            </span>
+                                        </div>
+
+                                        {erroFrete && (
+                                            <p className="text-xs text-amber-600">{erroFrete}</p>
+                                        )}
+
+                                        {/* Total */}
+                                        <div className="flex justify-between text-lg font-bold border-t pt-2">
                                             <span>Total</span>
                                             <span className="text-primary">
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}
