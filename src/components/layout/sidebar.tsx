@@ -46,11 +46,6 @@ const menuItems = [
         href: '/whatsapp',
         icon: MessageCircle
     },
-    {
-        title: 'Conexão Bot',
-        href: '/conexao',
-        icon: Smartphone
-    },
 ]
 
 export function Sidebar() {
