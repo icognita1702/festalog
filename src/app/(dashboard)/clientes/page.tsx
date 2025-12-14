@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table'
 import { Plus, Pencil, Trash2, Users, Loader2, Phone, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { Pagination } from '@/components/ui/pagination'
 import type { Cliente, ClienteInsert } from '@/lib/database.types'
 
 export default function ClientesPage() {
@@ -34,6 +35,8 @@ export default function ClientesPage() {
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(10)
 
     const [formData, setFormData] = useState<ClienteInsert>({
         nome: '',
@@ -66,6 +69,17 @@ export default function ClientesPage() {
         cliente.whatsapp.includes(searchTerm) ||
         (cliente.cpf && cliente.cpf.includes(searchTerm))
     )
+
+    // Paginate
+    const paginatedClientes = filteredClientes.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    )
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchTerm])
 
     function openDialog(cliente?: Cliente) {
         if (cliente) {
@@ -278,61 +292,70 @@ export default function ClientesPage() {
                             )}
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>WhatsApp</TableHead>
-                                    <TableHead>CPF</TableHead>
-                                    <TableHead>Endereço</TableHead>
-                                    <TableHead className="text-right">Ações</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredClientes.map((cliente) => (
-                                    <TableRow key={cliente.id}>
-                                        <TableCell className="font-medium">{cliente.nome}</TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-auto p-0 text-green-600 hover:text-green-700"
-                                                onClick={() => openWhatsApp(cliente.whatsapp)}
-                                            >
-                                                <Phone className="mr-1 h-3 w-3" />
-                                                {cliente.whatsapp}
-                                            </Button>
-                                        </TableCell>
-                                        <TableCell>{cliente.cpf || '-'}</TableCell>
-                                        <TableCell className="max-w-[200px] truncate">
-                                            <div className="flex items-center gap-1">
-                                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                                {cliente.endereco_completo}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => openDialog(cliente)}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() => handleDelete(cliente.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
+                        <>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nome</TableHead>
+                                        <TableHead>WhatsApp</TableHead>
+                                        <TableHead>CPF</TableHead>
+                                        <TableHead>Endereço</TableHead>
+                                        <TableHead className="text-right">Ações</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedClientes.map((cliente) => (
+                                        <TableRow key={cliente.id}>
+                                            <TableCell className="font-medium">{cliente.nome}</TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-green-600 hover:text-green-700"
+                                                    onClick={() => openWhatsApp(cliente.whatsapp)}
+                                                >
+                                                    <Phone className="mr-1 h-3 w-3" />
+                                                    {cliente.whatsapp}
+                                                </Button>
+                                            </TableCell>
+                                            <TableCell>{cliente.cpf || '-'}</TableCell>
+                                            <TableCell className="max-w-[200px] truncate">
+                                                <div className="flex items-center gap-1">
+                                                    <MapPin className="h-3 w-3 text-muted-foreground" />
+                                                    {cliente.endereco_completo}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => openDialog(cliente)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => handleDelete(cliente.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={filteredClientes.length}
+                                pageSize={pageSize}
+                                onPageChange={setCurrentPage}
+                                onPageSizeChange={setPageSize}
+                            />
+                        </>
                     )}
                 </CardContent>
             </Card>

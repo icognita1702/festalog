@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/table'
 import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { Pagination } from '@/components/ui/pagination'
 import type { Produto, ProdutoInsert, CategoriaProduto } from '@/lib/database.types'
 
 const categorias: { value: CategoriaProduto; label: string }[] = [
@@ -56,6 +57,8 @@ export default function ProdutosPage() {
     const [saving, setSaving] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProduto, setEditingProduto] = useState<Produto | null>(null)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(10)
 
     const [formData, setFormData] = useState<ProdutoInsert>({
         nome: '',
@@ -83,6 +86,12 @@ export default function ProdutosPage() {
     useEffect(() => {
         loadProdutos()
     }, [])
+
+    // Paginate
+    const paginatedProdutos = produtos.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    )
 
     function openDialog(produto?: Produto) {
         if (produto) {
@@ -276,52 +285,61 @@ export default function ProdutosPage() {
                             </Button>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>Categoria</TableHead>
-                                    <TableHead className="text-center">Quantidade</TableHead>
-                                    <TableHead className="text-right">Preço Unit.</TableHead>
-                                    <TableHead className="text-right">Ações</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {produtos.map((produto) => (
-                                    <TableRow key={produto.id}>
-                                        <TableCell className="font-medium">{produto.nome}</TableCell>
-                                        <TableCell>
-                                            <Badge className={categoriaColors[produto.categoria]}>
-                                                {categorias.find(c => c.value === produto.categoria)?.label}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-center">{produto.quantidade_total}</TableCell>
-                                        <TableCell className="text-right">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => openDialog(produto)}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() => handleDelete(produto.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
+                        <>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nome</TableHead>
+                                        <TableHead>Categoria</TableHead>
+                                        <TableHead className="text-center">Quantidade</TableHead>
+                                        <TableHead className="text-right">Preço Unit.</TableHead>
+                                        <TableHead className="text-right">Ações</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedProdutos.map((produto) => (
+                                        <TableRow key={produto.id}>
+                                            <TableCell className="font-medium">{produto.nome}</TableCell>
+                                            <TableCell>
+                                                <Badge className={categoriaColors[produto.categoria]}>
+                                                    {categorias.find(c => c.value === produto.categoria)?.label}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">{produto.quantidade_total}</TableCell>
+                                            <TableCell className="text-right">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => openDialog(produto)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => handleDelete(produto.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={produtos.length}
+                                pageSize={pageSize}
+                                onPageChange={setCurrentPage}
+                                onPageSizeChange={setPageSize}
+                            />
+                        </>
                     )}
                 </CardContent>
             </Card>

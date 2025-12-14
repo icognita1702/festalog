@@ -34,6 +34,7 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
+import { Pagination } from '@/components/ui/pagination'
 import type { PedidoComCliente, StatusPedido } from '@/lib/database.types'
 
 const statusColors: Record<StatusPedido, string> = {
@@ -75,6 +76,8 @@ function PedidosContent() {
     const [searchTerm, setSearchTerm] = useState('')
     const [statusFilter, setStatusFilter] = useState<StatusPedido | 'todos'>('todos')
     const [dataFilter, setDataFilter] = useState(dataParam || '')
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(10)
 
     async function loadPedidos() {
         setLoading(true)
@@ -109,6 +112,17 @@ function PedidosContent() {
     const filteredPedidos = pedidos.filter(pedido =>
         pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase())
     )
+
+    // Paginate
+    const paginatedPedidos = filteredPedidos.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    )
+
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchTerm, statusFilter, dataFilter])
 
     async function updateStatus(pedidoId: string, newStatus: StatusPedido) {
         const { error } = await supabase
@@ -212,72 +226,81 @@ function PedidosContent() {
                             </Button>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Cliente</TableHead>
-                                    <TableHead>Data Evento</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="text-right">Ações</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredPedidos.map((pedido) => (
-                                    <TableRow key={pedido.id}>
-                                        <TableCell>
-                                            <div>
-                                                <p className="font-medium">{pedido.clientes?.nome}</p>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-auto p-0 text-xs text-green-600 hover:text-green-700"
-                                                    onClick={() => openWhatsApp(pedido.clientes?.whatsapp || '', pedido.clientes?.nome || '')}
-                                                >
-                                                    <Phone className="mr-1 h-3 w-3" />
-                                                    {pedido.clientes?.whatsapp}
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {format(new Date(pedido.data_evento + 'T12:00:00'), "dd/MM/yyyy")}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Select
-                                                value={pedido.status}
-                                                onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
-                                            >
-                                                <SelectTrigger className="w-[160px]">
-                                                    <Badge className={statusColors[pedido.status]}>
-                                                        {statusLabels[pedido.status]}
-                                                    </Badge>
-                                                </SelectTrigger>
-                                                <SelectContent position="popper" sideOffset={5}>
-                                                    {allStatus.map((status) => (
-                                                        <SelectItem key={status} value={status}>
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`h-2 w-2 rounded-full ${statusColors[status]}`} />
-                                                                {statusLabels[status]}
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button asChild variant="ghost" size="icon">
-                                                <Link href={`/pedidos/${pedido.id}`}>
-                                                    <Eye className="h-4 w-4" />
-                                                </Link>
-                                            </Button>
-                                        </TableCell>
+                        <>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Cliente</TableHead>
+                                        <TableHead>Data Evento</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableHead className="text-right">Ações</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedPedidos.map((pedido) => (
+                                        <TableRow key={pedido.id}>
+                                            <TableCell>
+                                                <div>
+                                                    <p className="font-medium">{pedido.clientes?.nome}</p>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-auto p-0 text-xs text-green-600 hover:text-green-700"
+                                                        onClick={() => openWhatsApp(pedido.clientes?.whatsapp || '', pedido.clientes?.nome || '')}
+                                                    >
+                                                        <Phone className="mr-1 h-3 w-3" />
+                                                        {pedido.clientes?.whatsapp}
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {format(new Date(pedido.data_evento + 'T12:00:00'), "dd/MM/yyyy")}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    value={pedido.status}
+                                                    onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
+                                                >
+                                                    <SelectTrigger className="w-[160px]">
+                                                        <Badge className={statusColors[pedido.status]}>
+                                                            {statusLabels[pedido.status]}
+                                                        </Badge>
+                                                    </SelectTrigger>
+                                                    <SelectContent position="popper" sideOffset={5}>
+                                                        {allStatus.map((status) => (
+                                                            <SelectItem key={status} value={status}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`h-2 w-2 rounded-full ${statusColors[status]}`} />
+                                                                    {statusLabels[status]}
+                                                                </div>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button asChild variant="ghost" size="icon">
+                                                    <Link href={`/pedidos/${pedido.id}`}>
+                                                        <Eye className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={filteredPedidos.length}
+                                pageSize={pageSize}
+                                onPageChange={setCurrentPage}
+                                onPageSizeChange={setPageSize}
+                            />
+                        </>
                     )}
                 </CardContent>
             </Card>
