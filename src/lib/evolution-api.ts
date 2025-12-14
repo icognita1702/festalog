@@ -40,14 +40,20 @@ export async function enviarMensagem({ number, text }: SendMessageParams): Promi
 
 export async function criarInstancia(): Promise<{ qrcode?: string; error?: string }> {
     try {
+        console.log('[API] Tentando deletar instância antiga...')
         // Primeiro, tenta deletar instância existente
-        await fetch(`${EVOLUTION_API_URL}/instance/delete/${EVOLUTION_INSTANCE}`, {
+        const deleteRes = await fetch(`${EVOLUTION_API_URL}/instance/delete/${EVOLUTION_INSTANCE}`, {
             method: 'DELETE',
             headers: {
                 'apikey': EVOLUTION_API_KEY,
             },
-        }).catch(() => { })
+        })
+        console.log('[API] Delete status:', deleteRes.status)
 
+        // Aguarda 2 segundos para garantir limpeza
+        await new Promise(r => setTimeout(r, 2000))
+
+        console.log('[API] Criando nova instância...')
         // Criar nova instância
         const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
             method: 'POST',
@@ -74,7 +80,7 @@ export async function criarInstancia(): Promise<{ qrcode?: string; error?: strin
         })
 
         const data = await response.json()
-        console.log('Criar instância resposta:', JSON.stringify(data, null, 2))
+        console.log('[API] Criar instância resposta:', JSON.stringify(data, null, 2))
 
         // v2.x retorna o QR no campo qrcode.base64 ou apenas base64
         if (data.qrcode?.base64) {
@@ -85,8 +91,14 @@ export async function criarInstancia(): Promise<{ qrcode?: string; error?: strin
             return { qrcode: data.base64 }
         }
 
+        if (data.qrcode && typeof data.qrcode === 'string') {
+            return { qrcode: data.qrcode }
+        }
+
         // Se a instância foi criada mas não tem QR, buscar
-        if (data.instance || data.hash) {
+        if (data.instance || data.hash || data.id) {
+            console.log('[API] Instância criada, buscando QR Code separadamente...')
+            await new Promise(r => setTimeout(r, 1000))
             return await obterQRCode()
         }
 
@@ -108,7 +120,6 @@ export async function obterQRCode(): Promise<{ qrcode?: string; connected?: bool
         })
 
         const statusData = await statusResponse.json()
-        console.log('Status response:', JSON.stringify(statusData, null, 2))
 
         // Verifica se já está conectado
         if (statusData.state === 'open' || statusData.instance?.state === 'open') {
@@ -116,6 +127,7 @@ export async function obterQRCode(): Promise<{ qrcode?: string; connected?: bool
         }
 
         // v2.x: endpoint para obter QR code
+        console.log('[API] Buscando QR Code do endpoint connect...')
         const qrResponse = await fetch(`${EVOLUTION_API_URL}/instance/connect/${EVOLUTION_INSTANCE}`, {
             method: 'GET',
             headers: {
@@ -124,23 +136,26 @@ export async function obterQRCode(): Promise<{ qrcode?: string; connected?: bool
         })
 
         const qrData = await qrResponse.json()
-        console.log('QR response:', JSON.stringify(qrData, null, 2))
+        console.log('[API] QR response:', JSON.stringify(qrData, null, 2))
 
         if (qrData.base64) {
             return { qrcode: qrData.base64 }
         }
 
         if (qrData.code) {
-            // Se retornou código texto, converter para QR base64
             return { qrcode: qrData.code }
         }
 
+        // As vezes vem como qrcode
+        if (qrData.qrcode) {
+            return { qrcode: qrData.qrcode }
+        }
+
         if (qrData.pairingCode) {
-            // v2.x pode retornar pairing code
             return { qrcode: `data:image/png;base64,${qrData.pairingCode}` }
         }
 
-        return { error: qrData.message || 'QR Code não disponível' }
+        return { error: qrData.message || 'QR Code não disponível (tente novamente)' }
     } catch (error) {
         console.error('Erro ao obter QR Code:', error)
         return { error: 'Erro de conexão com Evolution API' }
