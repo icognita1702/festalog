@@ -117,6 +117,12 @@ export default function FinanceiroPage() {
     const [topProdutos, setTopProdutos] = useState<TopProduto[]>([])
     const [loading, setLoading] = useState(true)
     const [exporting, setExporting] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    // Ensure client-side only rendering for charts
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     // Load data function
     const loadData = useCallback(async () => {
@@ -450,8 +456,8 @@ export default function FinanceiroPage() {
                                 <CardDescription>Últimos 12 meses</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="h-[300px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-[300px] w-full">
+                                    {mounted && <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={monthlyData}>
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                                             <XAxis dataKey="mesAbrev" className="text-xs" />
@@ -474,7 +480,7 @@ export default function FinanceiroPage() {
                                                 dot={{ fill: 'hsl(var(--primary))', r: 4 }}
                                             />
                                         </LineChart>
-                                    </ResponsiveContainer>
+                                    </ResponsiveContainer>}
                                 </div>
                             </CardContent>
                         </Card>
@@ -489,8 +495,8 @@ export default function FinanceiroPage() {
                                 <CardDescription>Distribuição atual</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="h-[300px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-[300px] w-full">
+                                    {mounted && <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
                                                 data={statusData}
@@ -510,7 +516,7 @@ export default function FinanceiroPage() {
                                             />
                                             <Legend />
                                         </PieChart>
-                                    </ResponsiveContainer>
+                                    </ResponsiveContainer>}
                                 </div>
                             </CardContent>
                         </Card>
@@ -528,8 +534,8 @@ export default function FinanceiroPage() {
                                 <CardDescription>Quantidade de pedidos finalizados</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="h-[250px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-[250px] w-full">
+                                    {mounted && <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={monthlyData}>
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                                             <XAxis dataKey="mesAbrev" className="text-xs" />
@@ -543,7 +549,7 @@ export default function FinanceiroPage() {
                                                 radius={[4, 4, 0, 0]}
                                             />
                                         </BarChart>
-                                    </ResponsiveContainer>
+                                    </ResponsiveContainer>}
                                 </div>
                             </CardContent>
                         </Card>
