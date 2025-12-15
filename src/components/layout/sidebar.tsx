@@ -19,7 +19,8 @@ import {
     MessageCircle,
     Settings,
     PartyPopper,
-    Menu
+    Menu,
+    TrendingUp
 } from 'lucide-react'
 
 const menuItems = [
@@ -52,6 +53,11 @@ const menuItems = [
         title: 'WhatsApp',
         href: '/whatsapp',
         icon: MessageCircle
+    },
+    {
+        title: 'Financeiro',
+        href: '/financeiro',
+        icon: TrendingUp
     },
 ]
 
