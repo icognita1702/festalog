@@ -19,7 +19,7 @@ import {
     ShoppingCart,
     Percent
 } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval, parseISO } from 'date-fns'
+import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import { exportToExcel, type PedidoExport, type ClienteExport, type ProdutoExport, type ResumoMensal } from '@/lib/excel-export'
@@ -65,6 +65,24 @@ const statusColors: Record<string, string> = {
 
 const PIE_COLORS = ['#6b7280', '#3b82f6', '#8b5cf6', '#eab308', '#f97316', '#14b8a6', '#22c55e']
 
+// Helper functions to avoid date-fns v4 type issues
+function subMonths(date: Date, months: number): Date {
+    const result = new Date(date)
+    result.setMonth(result.getMonth() - months)
+    return result
+}
+
+function eachMonthOfInterval(interval: { start: Date; end: Date }): Date[] {
+    const months: Date[] = []
+    const current = new Date(interval.start)
+    current.setDate(1)
+    while (current <= interval.end) {
+        months.push(new Date(current))
+        current.setMonth(current.getMonth() + 1)
+    }
+    return months
+}
+
 // Types
 interface FinancialStats {
     faturamentoTotal: number
@@ -88,6 +106,7 @@ interface StatusData {
     name: string
     value: number
     color: string
+    [key: string]: string | number
 }
 
 interface TopProduto {
