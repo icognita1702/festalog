@@ -158,7 +158,7 @@ export default function ProdutosPage() {
     )
 
     function getCategoriaColor(categoriaNome: string): string {
-        const cat = categorias.find(c => c.nome === categoriaNome)
+        const cat = categorias.find(c => c.nome.toLowerCase() === categoriaNome.toLowerCase())
         return cat?.cor || 'bg-gray-500'
     }
 
@@ -201,6 +201,12 @@ export default function ProdutosPage() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+
+        if (!formData.categoria) {
+            alert('Selecione uma categoria para o produto.')
+            return
+        }
+
         setSaving(true)
 
         try {
@@ -221,8 +227,9 @@ export default function ProdutosPage() {
 
             setDialogOpen(false)
             loadProdutos()
-        } catch (error) {
+        } catch (error: any) {
             console.error('Erro ao salvar produto:', error)
+            alert(`Erro ao salvar produto: ${error?.message || 'Tente novamente.'}`)
         } finally {
             setSaving(false)
         }
