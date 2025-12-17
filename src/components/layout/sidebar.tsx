@@ -20,7 +20,8 @@ import {
     Settings,
     PartyPopper,
     Menu,
-    TrendingUp
+    TrendingUp,
+    Calculator
 } from 'lucide-react'
 
 const menuItems = [
@@ -43,6 +44,11 @@ const menuItems = [
         title: 'Pedidos',
         href: '/pedidos',
         icon: FileText
+    },
+    {
+        title: 'Orçamento',
+        href: '/orcamento',
+        icon: Calculator
     },
     {
         title: 'Rotas',
