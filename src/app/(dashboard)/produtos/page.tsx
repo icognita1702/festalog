@@ -30,9 +30,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Package, Loader2, Tags } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Loader2, Tags, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Pagination } from '@/components/ui/pagination'
+import type { DisponibilidadeProduto } from '@/lib/database.types'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Categoria {
     id: string
@@ -83,6 +86,11 @@ export default function ProdutosPage() {
     const [newCategoryColor, setNewCategoryColor] = useState('bg-gray-500')
     const [savingCategory, setSavingCategory] = useState(false)
 
+    // Stock availability state
+    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+    const [disponibilidade, setDisponibilidade] = useState<DisponibilidadeProduto[]>([])
+    const [loadingDisp, setLoadingDisp] = useState(false)
+
     const [formData, setFormData] = useState<ProdutoInsert>({
         nome: '',
         quantidade_total: 0,
@@ -119,10 +127,29 @@ export default function ProdutosPage() {
         setLoading(false)
     }
 
+    async function loadDisponibilidade(dataConsulta: string) {
+        setLoadingDisp(true)
+        const { data, error } = await supabase
+            .rpc('calcular_disponibilidade', { data_consulta: dataConsulta })
+
+        if (error) {
+            console.error('Erro ao carregar disponibilidade:', error)
+        } else {
+            setDisponibilidade(data || [])
+        }
+        setLoadingDisp(false)
+    }
+
     useEffect(() => {
         loadCategorias()
         loadProdutos()
     }, [])
+
+    useEffect(() => {
+        if (selectedDate) {
+            loadDisponibilidade(selectedDate)
+        }
+    }, [selectedDate])
 
     // Paginate
     const paginatedProdutos = produtos.slice(
@@ -133,6 +160,22 @@ export default function ProdutosPage() {
     function getCategoriaColor(categoriaNome: string): string {
         const cat = categorias.find(c => c.nome === categoriaNome)
         return cat?.cor || 'bg-gray-500'
+    }
+
+    function getDisponibilidadeProduto(produtoId: string) {
+        return disponibilidade.find(d => d.produto_id === produtoId)
+    }
+
+    function getStockStatus(total: number, reservado: number) {
+        const disponivel = total - reservado
+        const percentual = total > 0 ? (disponivel / total) * 100 : 0
+
+        if (disponivel <= 0) {
+            return { label: 'Esgotado', color: 'bg-red-500', icon: XCircle }
+        } else if (percentual <= 20) {
+            return { label: 'Baixo', color: 'bg-yellow-500', icon: AlertTriangle }
+        }
+        return { label: 'OK', color: 'bg-green-500', icon: CheckCircle2 }
     }
 
     function openDialog(produto?: Produto) {
@@ -445,10 +488,27 @@ export default function ProdutosPage() {
             {/* Tabela */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Estoque</CardTitle>
-                    <CardDescription>
-                        {produtos.length} produto{produtos.length !== 1 ? 's' : ''} cadastrado{produtos.length !== 1 ? 's' : ''}
-                    </CardDescription>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <CardTitle>Estoque</CardTitle>
+                            <CardDescription>
+                                {produtos.length} produto{produtos.length !== 1 ? 's' : ''} cadastrado{produtos.length !== 1 ? 's' : ''}
+                            </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Label htmlFor="stock-date" className="text-sm whitespace-nowrap">
+                                Ver disponibilidade para:
+                            </Label>
+                            <Input
+                                id="stock-date"
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="w-[160px]"
+                            />
+                            {loadingDisp && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -472,45 +532,74 @@ export default function ProdutosPage() {
                                     <TableRow>
                                         <TableHead>Nome</TableHead>
                                         <TableHead>Categoria</TableHead>
-                                        <TableHead className="text-center">Quantidade</TableHead>
+                                        <TableHead className="text-center">Total</TableHead>
+                                        <TableHead className="text-center">Reservado</TableHead>
+                                        <TableHead className="text-center">Disponível</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-right">Preço Unit.</TableHead>
                                         <TableHead className="text-right">Ações</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {paginatedProdutos.map((produto) => (
-                                        <TableRow key={produto.id}>
-                                            <TableCell className="font-medium">{produto.nome}</TableCell>
-                                            <TableCell>
-                                                <Badge className={getCategoriaColor(produto.categoria)}>
-                                                    {produto.categoria}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-center">{produto.quantidade_total}</TableCell>
-                                            <TableCell className="text-right">
-                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => openDialog(produto)}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="text-destructive hover:text-destructive"
-                                                        onClick={() => handleDelete(produto.id)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {paginatedProdutos.map((produto) => {
+                                        const disp = getDisponibilidadeProduto(produto.id)
+                                        const reservado = disp ? Number(disp.quantidade_reservada) : 0
+                                        const disponivel = disp ? Number(disp.quantidade_disponivel) : produto.quantidade_total
+                                        const status = getStockStatus(produto.quantidade_total, reservado)
+                                        const StatusIcon = status.icon
+
+                                        return (
+                                            <TableRow key={produto.id}>
+                                                <TableCell className="font-medium">{produto.nome}</TableCell>
+                                                <TableCell>
+                                                    <Badge className={getCategoriaColor(produto.categoria)}>
+                                                        {produto.categoria}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">{produto.quantidade_total}</TableCell>
+                                                <TableCell className="text-center">
+                                                    {reservado > 0 ? (
+                                                        <span className="font-medium text-orange-600">{reservado}</span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">0</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className={disponivel <= 0 ? 'text-red-600 font-bold' : disponivel <= produto.quantidade_total * 0.2 ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
+                                                        {disponivel}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge className={`${status.color} gap-1`}>
+                                                        <StatusIcon className="h-3 w-3" />
+                                                        {status.label}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => openDialog(produto)}
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => handleDelete(produto.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
                                 </TableBody>
                             </Table>
                             <Pagination
