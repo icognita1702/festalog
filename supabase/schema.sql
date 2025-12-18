@@ -132,8 +132,12 @@ BEGIN
   FROM produtos p
   LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
   LEFT JOIN pedidos ped ON ip.pedido_id = ped.id 
-    AND ped.data_evento = data_consulta
     AND ped.status NOT IN ('orcamento', 'finalizado')
+    AND (
+       ped.data_evento = data_consulta
+       OR
+       (ped.data_evento < CURRENT_DATE AND ped.data_evento <= data_consulta)
+    )
   GROUP BY p.id, p.nome, p.quantidade_total
   ORDER BY p.nome;
 END;
