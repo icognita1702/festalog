@@ -121,23 +121,35 @@ RETURNS TABLE (
   quantidade_reservada BIGINT,
   quantidade_disponivel BIGINT
 ) AS $$
+DECLARE
+  hoje DATE := CURRENT_DATE;
 BEGIN
   RETURN QUERY
   SELECT 
     p.id as produto_id,
     p.nome,
     p.quantidade_total,
-    COALESCE(SUM(ip.quantidade), 0)::BIGINT as quantidade_reservada,
-    (p.quantidade_total - COALESCE(SUM(ip.quantidade), 0))::BIGINT as quantidade_disponivel
+    COALESCE(SUM(
+      CASE 
+        WHEN ped.id IS NOT NULL 
+             AND ped.status IN ('pago_50', 'entregue')
+             AND (ped.data_evento = data_consulta OR ped.data_evento < hoje)
+        THEN ip.quantidade 
+        ELSE 0 
+      END
+    ), 0)::BIGINT as quantidade_reservada,
+    (p.quantidade_total - COALESCE(SUM(
+      CASE 
+        WHEN ped.id IS NOT NULL 
+             AND ped.status IN ('pago_50', 'entregue')
+             AND (ped.data_evento = data_consulta OR ped.data_evento < hoje)
+        THEN ip.quantidade 
+        ELSE 0 
+      END
+    ), 0))::BIGINT as quantidade_disponivel
   FROM produtos p
   LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
-  LEFT JOIN pedidos ped ON ip.pedido_id = ped.id 
-    AND ped.status IN ('pago_50', 'entregue') 
-    AND (
-       ped.data_evento = data_consulta
-       OR
-       (ped.data_evento < CURRENT_DATE AND ped.data_evento <= data_consulta)
-    )
+  LEFT JOIN pedidos ped ON ip.pedido_id = ped.id
   GROUP BY p.id, p.nome, p.quantidade_total
   ORDER BY p.nome;
 END;
