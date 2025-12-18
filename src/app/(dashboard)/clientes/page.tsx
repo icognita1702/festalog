@@ -23,10 +23,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Users, Loader2, Phone, MapPin } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Loader2, Phone, MapPin, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Pagination } from '@/components/ui/pagination'
+import { ConversationImportDialog } from '@/components/conversation-import-dialog'
 import type { Cliente, ClienteInsert } from '@/lib/database.types'
+import type { ExtractionResult } from '@/lib/conversation-analyzer'
 
 export default function ClientesPage() {
     const [clientes, setClientes] = useState<Cliente[]>([])
@@ -171,6 +173,68 @@ export default function ClientesPage() {
         window.open(`https://api.whatsapp.com/send?phone=55${number}`, '_blank')
     }
 
+    // Handler para importar cliente a partir de conversa do WhatsApp
+    async function handleConversationImport(result: ExtractionResult) {
+        if (!result.cliente.nome) {
+            alert('Nome do cliente não foi extraído da conversa')
+            return
+        }
+
+        // Verifica se cliente já existe pelo telefone
+        if (result.cliente.telefone) {
+            const telefoneNormalizado = result.cliente.telefone.replace(/\D/g, '')
+            const { data: existingByPhone } = await supabase
+                .from('clientes')
+                .select('id, nome')
+                .or(`whatsapp.ilike.%${telefoneNormalizado.slice(-9)}%`)
+                .single()
+
+            if (existingByPhone) {
+                alert(`Cliente já cadastrado: ${existingByPhone.nome}`)
+                loadClientes()
+                return
+            }
+        }
+
+        // Verifica pelo nome
+        const { data: existingByName } = await supabase
+            .from('clientes')
+            .select('id, nome')
+            .ilike('nome', result.cliente.nome)
+            .single()
+
+        if (existingByName) {
+            alert(`Cliente já cadastrado: ${existingByName.nome}`)
+            loadClientes()
+            return
+        }
+
+        // Formata telefone para (XX) XXXXX-XXXX
+        let whatsappFormatado = result.cliente.telefone || ''
+        if (whatsappFormatado) {
+            const cleaned = whatsappFormatado.replace(/\D/g, '')
+            // Remove código do país se presente
+            const local = cleaned.length >= 12 && cleaned.startsWith('55')
+                ? cleaned.slice(2)
+                : cleaned
+            if (local.length === 11) {
+                whatsappFormatado = `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+            } else if (local.length === 10) {
+                whatsappFormatado = `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
+            }
+        }
+
+        // Cria o cliente
+        setFormData({
+            nome: result.cliente.nome,
+            whatsapp: whatsappFormatado,
+            endereco_completo: result.cliente.endereco || '',
+            cpf: '',
+        })
+        setEditingCliente(null)
+        setDialogOpen(true)
+    }
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -181,79 +245,82 @@ export default function ClientesPage() {
                         Gerencie seus clientes e informações de contato
                     </p>
                 </div>
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button onClick={() => openDialog()}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Novo Cliente
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                        <form onSubmit={handleSubmit}>
-                            <DialogHeader>
-                                <DialogTitle>
-                                    {editingCliente ? 'Editar Cliente' : 'Novo Cliente'}
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Preencha os dados do cliente abaixo
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="nome">Nome Completo</Label>
-                                    <Input
-                                        id="nome"
-                                        value={formData.nome}
-                                        onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                                        placeholder="Ex: João da Silva"
-                                        required
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
+                <div className="flex gap-2">
+                    <ConversationImportDialog onImport={handleConversationImport} />
+                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button onClick={() => openDialog()}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Novo Cliente
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md">
+                            <form onSubmit={handleSubmit}>
+                                <DialogHeader>
+                                    <DialogTitle>
+                                        {editingCliente ? 'Editar Cliente' : 'Novo Cliente'}
+                                    </DialogTitle>
+                                    <DialogDescription>
+                                        Preencha os dados do cliente abaixo
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="whatsapp">WhatsApp</Label>
+                                        <Label htmlFor="nome">Nome Completo</Label>
                                         <Input
-                                            id="whatsapp"
-                                            value={formData.whatsapp}
-                                            onChange={(e) => setFormData({ ...formData, whatsapp: formatWhatsApp(e.target.value) })}
-                                            placeholder="(31) 99999-9999"
+                                            id="nome"
+                                            value={formData.nome}
+                                            onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                                            placeholder="Ex: João da Silva"
                                             required
                                         />
                                     </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="whatsapp">WhatsApp</Label>
+                                            <Input
+                                                id="whatsapp"
+                                                value={formData.whatsapp}
+                                                onChange={(e) => setFormData({ ...formData, whatsapp: formatWhatsApp(e.target.value) })}
+                                                placeholder="(31) 99999-9999"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="cpf">CPF</Label>
+                                            <Input
+                                                id="cpf"
+                                                value={formData.cpf || ''}
+                                                onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
+                                                placeholder="000.000.000-00"
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="cpf">CPF</Label>
-                                        <Input
-                                            id="cpf"
-                                            value={formData.cpf || ''}
-                                            onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
-                                            placeholder="000.000.000-00"
+                                        <Label htmlFor="endereco">Endereço Completo</Label>
+                                        <Textarea
+                                            id="endereco"
+                                            value={formData.endereco_completo}
+                                            onChange={(e) => setFormData({ ...formData, endereco_completo: e.target.value })}
+                                            placeholder="Rua, número, bairro, cidade - UF"
+                                            rows={3}
+                                            required
                                         />
                                     </div>
                                 </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="endereco">Endereço Completo</Label>
-                                    <Textarea
-                                        id="endereco"
-                                        value={formData.endereco_completo}
-                                        onChange={(e) => setFormData({ ...formData, endereco_completo: e.target.value })}
-                                        placeholder="Rua, número, bairro, cidade - UF"
-                                        rows={3}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" disabled={saving}>
-                                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    {editingCliente ? 'Salvar' : 'Cadastrar'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                                        Cancelar
+                                    </Button>
+                                    <Button type="submit" disabled={saving}>
+                                        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        {editingCliente ? 'Salvar' : 'Cadastrar'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             {/* Busca */}

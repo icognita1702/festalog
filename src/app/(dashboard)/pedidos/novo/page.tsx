@@ -61,6 +61,7 @@ export default function NovoPedidoPage() {
     const [distanciaKm, setDistanciaKm] = useState(0)
     const [calculandoFrete, setCalculandoFrete] = useState(false)
     const [erroFrete, setErroFrete] = useState('')
+    const [incluirFrete, setIncluirFrete] = useState(true) // Toggle frete
 
     async function loadData() {
         setLoading(true)
@@ -202,7 +203,7 @@ export default function NovoPedidoPage() {
     }
 
     const subtotal = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
-    const total = subtotal + frete
+    const total = subtotal + (incluirFrete ? frete : 0)
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -224,8 +225,8 @@ export default function NovoPedidoPage() {
                     hora_entrega: horaEntrega,
                     observacoes,
                     total_pedido: total,
-                    frete: frete,
-                    distancia_km: distanciaKm,
+                    frete: incluirFrete ? frete : 0,
+                    distancia_km: incluirFrete ? distanciaKm : 0,
                 })
                 .select()
                 .single()
@@ -607,18 +608,26 @@ export default function NovoPedidoPage() {
                                             </span>
                                         </div>
 
-                                        {/* Freight */}
-                                        <div className="flex justify-between text-sm">
-                                            <span className="flex items-center gap-1">
-                                                <Truck className="h-3 w-3" />
-                                                Frete
-                                                {distanciaKm > 0 && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        ({distanciaKm} km)
-                                                    </span>
-                                                )}
-                                            </span>
-                                            <span className="flex items-center gap-2">
+                                        {/* Freight Toggle */}
+                                        <div className="flex items-center justify-between text-sm">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={incluirFrete}
+                                                    onChange={(e) => setIncluirFrete(e.target.checked)}
+                                                    className="h-4 w-4 rounded border-gray-300"
+                                                />
+                                                <span className="flex items-center gap-1">
+                                                    <Truck className="h-3 w-3" />
+                                                    Incluir Frete
+                                                    {incluirFrete && distanciaKm > 0 && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            ({distanciaKm} km)
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </label>
+                                            <span className={`flex items-center gap-2 ${!incluirFrete ? 'line-through text-muted-foreground' : ''}`}>
                                                 {calculandoFrete ? (
                                                     <Loader2 className="h-3 w-3 animate-spin" />
                                                 ) : (

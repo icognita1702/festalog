@@ -202,14 +202,13 @@ async function callGemini(conversation: string, apiKey: string): Promise<Extract
     const genAI = new GoogleGenerativeAI(apiKey)
 
     // Lista de modelos para tentar em ordem de prioridade
-    // Alguns nomes podem mudar ou ser descontinuados, o loop garante resiliência
+    // Gemini 2.0 Flash tem quota grátis e é o modelo recomendado
     const modelsToTry = [
-        'gemini-1.5-flash-latest', // Tenta versão mais recente
-        'gemini-1.5-flash',        // Tenta nome padrão
-        'gemini-1.5-flash-002',    // Tenta versão específica recente
-        'gemini-1.5-flash-001',    // Tenta versão estável anterior
-        'gemini-1.5-flash-8b',     // Tenta versão leve
-        'gemini-1.5-pro-latest'    // Fallback para Pro se Flash falhar
+        'gemini-2.0-flash-exp',    // Gemini 2.0 Flash (experimental, grátis)
+        'gemini-2.0-flash',        // Gemini 2.0 Flash
+        'gemini-1.5-flash-latest', // Fallback para 1.5
+        'gemini-1.5-flash',        // Fallback
+        'gemini-1.5-pro-latest'    // Último recurso
     ]
 
     let lastError = null;
@@ -348,14 +347,36 @@ function normalizeExtraction(data: ExtractionResult): ExtractionResult {
 }
 
 /**
- * Formata telefone para exibição
+ * Formata telefone para exibição no padrão brasileiro
+ * Aceita: 31982290789, 5531982290789, (31) 98229-0789, etc.
+ * Retorna: (31) 98229-0789
  */
 export function formatPhoneDisplay(phone: string | null): string {
     if (!phone) return ''
-    const cleaned = phone.replace(/\D/g, '')
+    let cleaned = phone.replace(/\D/g, '')
+
+    // Remove código do país se presente (55)
     if (cleaned.length === 13 && cleaned.startsWith('55')) {
-        // 55 31 99999-9999
-        return `(${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`
+        cleaned = cleaned.slice(2) // Remove 55, fica 11 dígitos
+    } else if (cleaned.length === 12 && cleaned.startsWith('55')) {
+        cleaned = cleaned.slice(2) // Remove 55, fica 10 dígitos
     }
+
+    // Celular com 9 dígitos: (XX) 9XXXX-XXXX
+    if (cleaned.length === 11) {
+        return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`
+    }
+
+    // Fixo com 8 dígitos: (XX) XXXX-XXXX
+    if (cleaned.length === 10) {
+        return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`
+    }
+
+    // Celular sem DDD: 9XXXX-XXXX
+    if (cleaned.length === 9) {
+        return `${cleaned.slice(0, 5)}-${cleaned.slice(5)}`
+    }
+
+    // Retorna original se não for reconhecido
     return phone
 }
