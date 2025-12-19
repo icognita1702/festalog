@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
     Select,
     SelectContent,
@@ -31,13 +34,17 @@ import {
     Send,
     Download,
     Trash2,
-    User
+    User,
+    Pencil,
+    Plus,
+    X,
+    Save
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { supabase } from '@/lib/supabase'
-import type { PedidoCompleto, StatusPedido, ItemPedido, Produto } from '@/lib/database.types'
+import type { PedidoCompleto, StatusPedido, ItemPedido, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -71,6 +78,15 @@ const allStatus: StatusPedido[] = [
 
 type ItemPedidoComProduto = ItemPedido & { produtos: Produto }
 
+interface ItemCarrinhoEdit {
+    id?: string // ID do item existente, undefined para novos
+    produto: Produto
+    quantidade: number
+    preco_unitario: number
+    disponivel: number
+    isNew?: boolean // marca se é um item novo
+}
+
 export default function PedidoDetalhesPage() {
     const params = useParams()
     const router = useRouter()
@@ -79,6 +95,18 @@ export default function PedidoDetalhesPage() {
     const [pedido, setPedido] = useState<PedidoCompleto | null>(null)
     const [loading, setLoading] = useState(true)
     const [gerando, setGerando] = useState(false)
+
+    // Estados de edição
+    const [modoEdicao, setModoEdicao] = useState(false)
+    const [salvando, setSalvando] = useState(false)
+    const [dataEventoEdit, setDataEventoEdit] = useState('')
+    const [horaEntregaEdit, setHoraEntregaEdit] = useState('')
+    const [observacoesEdit, setObservacoesEdit] = useState('')
+    const [carrinhoEdit, setCarrinhoEdit] = useState<ItemCarrinhoEdit[]>([])
+    const [produtos, setProdutos] = useState<Produto[]>([])
+    const [disponibilidade, setDisponibilidade] = useState<DisponibilidadeProduto[]>([])
+    const [produtoSelecionado, setProdutoSelecionado] = useState('')
+    const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1)
 
     async function loadPedido() {
         setLoading(true)
@@ -99,6 +127,221 @@ export default function PedidoDetalhesPage() {
     useEffect(() => {
         loadPedido()
     }, [pedidoId])
+
+    // Carregar produtos para edição
+    async function loadProdutos() {
+        const { data, error } = await supabase
+            .from('produtos')
+            .select('*')
+            .order('nome')
+
+        if (data) setProdutos(data)
+    }
+
+    // Verificar disponibilidade para uma data
+    async function checkDisponibilidade(data: string) {
+        if (!data) return
+
+        const { data: disp, error } = await supabase
+            .rpc('calcular_disponibilidade', { data_consulta: data })
+
+        if (error) {
+            console.error('Erro ao verificar disponibilidade:', error)
+        } else {
+            setDisponibilidade(disp || [])
+        }
+    }
+
+    // Iniciar modo de edição
+    async function iniciarEdicao() {
+        if (!pedido) return
+
+        // Carrega produtos
+        await loadProdutos()
+
+        // Carrega disponibilidade para a data do evento
+        await checkDisponibilidade(pedido.data_evento)
+
+        // Preenche campos editáveis
+        setDataEventoEdit(pedido.data_evento)
+        setHoraEntregaEdit((pedido as any).hora_entrega || '14:00')
+        setObservacoesEdit(pedido.observacoes || '')
+
+        // Converte itens do pedido para carrinho editável
+        const itensEdit: ItemCarrinhoEdit[] = (pedido.itens_pedido || []).map((item: ItemPedidoComProduto) => ({
+            id: item.id,
+            produto: item.produtos,
+            quantidade: item.quantidade,
+            preco_unitario: item.preco_unitario,
+            disponivel: item.quantidade + getDisponivel(item.produtos.id), // Quantidade atual + disponível
+            isNew: false
+        }))
+        setCarrinhoEdit(itensEdit)
+
+        setModoEdicao(true)
+    }
+
+    // Cancelar edição
+    function cancelarEdicao() {
+        setModoEdicao(false)
+        setCarrinhoEdit([])
+        setProdutoSelecionado('')
+        setQuantidadeSelecionada(1)
+    }
+
+    // Obter quantidade disponível de um produto
+    function getDisponivel(produtoId: string): number {
+        const item = disponibilidade.find(d => d.produto_id === produtoId)
+        return item ? Number(item.quantidade_disponivel) : 0
+    }
+
+    // Adicionar produto ao carrinho de edição
+    function addToCarrinhoEdit() {
+        if (!produtoSelecionado || quantidadeSelecionada < 1) return
+
+        const produto = produtos.find(p => p.id === produtoSelecionado)
+        if (!produto) return
+
+        const disponivel = getDisponivel(produtoSelecionado)
+
+        // Verifica se já está no carrinho
+        const existingIndex = carrinhoEdit.findIndex(item => item.produto.id === produtoSelecionado)
+
+        if (existingIndex >= 0) {
+            const newQtd = carrinhoEdit[existingIndex].quantidade + quantidadeSelecionada
+            if (newQtd > carrinhoEdit[existingIndex].disponivel) {
+                alert(`Quantidade indisponível. Máximo disponível: ${carrinhoEdit[existingIndex].disponivel}`)
+                return
+            }
+            const newCarrinho = [...carrinhoEdit]
+            newCarrinho[existingIndex].quantidade = newQtd
+            setCarrinhoEdit(newCarrinho)
+        } else {
+            if (quantidadeSelecionada > disponivel) {
+                alert(`Quantidade indisponível. Máximo disponível: ${disponivel}`)
+                return
+            }
+            setCarrinhoEdit([...carrinhoEdit, {
+                produto,
+                quantidade: quantidadeSelecionada,
+                preco_unitario: produto.preco_unitario,
+                disponivel,
+                isNew: true
+            }])
+        }
+
+        setProdutoSelecionado('')
+        setQuantidadeSelecionada(1)
+    }
+
+    // Remover item do carrinho de edição
+    function removeFromCarrinhoEdit(index: number) {
+        setCarrinhoEdit(carrinhoEdit.filter((_, i) => i !== index))
+    }
+
+    // Atualizar quantidade de um item no carrinho
+    function updateQuantidadeEdit(index: number, novaQuantidade: number) {
+        if (novaQuantidade < 1) return
+        if (novaQuantidade > carrinhoEdit[index].disponivel) {
+            alert(`Quantidade indisponível. Máximo disponível: ${carrinhoEdit[index].disponivel}`)
+            return
+        }
+        const newCarrinho = [...carrinhoEdit]
+        newCarrinho[index].quantidade = novaQuantidade
+        setCarrinhoEdit(newCarrinho)
+    }
+
+    // Calcular total do carrinho de edição
+    const totalEdit = carrinhoEdit.reduce((acc, item) => acc + (item.preco_unitario * item.quantidade), 0) + ((pedido as any)?.frete || 0)
+
+    // Salvar alterações do pedido
+    async function salvarEdicao() {
+        if (!pedido || carrinhoEdit.length === 0) {
+            alert('Adicione pelo menos um produto ao pedido')
+            return
+        }
+
+        setSalvando(true)
+
+        try {
+            // 1. Atualizar dados do pedido
+            const { error: pedidoError } = await supabase
+                .from('pedidos')
+                .update({
+                    data_evento: dataEventoEdit,
+                    hora_entrega: horaEntregaEdit,
+                    observacoes: observacoesEdit,
+                    total_pedido: totalEdit
+                })
+                .eq('id', pedidoId)
+
+            if (pedidoError) throw pedidoError
+
+            // 2. Identificar itens para deletar, inserir e atualizar
+            const itensOriginais = new Set((pedido.itens_pedido || []).map((item: ItemPedidoComProduto) => item.id))
+            const itensAtuais = new Set(carrinhoEdit.filter(item => item.id).map(item => item.id))
+
+            // Itens para deletar (estavam no original mas não estão mais)
+            const itensDeletar = [...itensOriginais].filter(id => !itensAtuais.has(id))
+
+            // 3. Deletar itens removidos
+            if (itensDeletar.length > 0) {
+                const { error: deleteError } = await supabase
+                    .from('itens_pedido')
+                    .delete()
+                    .in('id', itensDeletar)
+
+                if (deleteError) throw deleteError
+            }
+
+            // 4. Atualizar itens existentes
+            for (const item of carrinhoEdit.filter(i => i.id && !i.isNew)) {
+                const { error: updateError } = await supabase
+                    .from('itens_pedido')
+                    .update({
+                        quantidade: item.quantidade,
+                        preco_unitario: item.preco_unitario
+                    })
+                    .eq('id', item.id!)
+
+                if (updateError) throw updateError
+            }
+
+            // 5. Inserir novos itens
+            const novosItens = carrinhoEdit.filter(i => i.isNew).map(item => ({
+                pedido_id: pedidoId,
+                produto_id: item.produto.id,
+                quantidade: item.quantidade,
+                preco_unitario: item.preco_unitario
+            }))
+
+            if (novosItens.length > 0) {
+                const { error: insertError } = await supabase
+                    .from('itens_pedido')
+                    .insert(novosItens)
+
+                if (insertError) throw insertError
+            }
+
+            // Recarregar pedido e sair do modo edição
+            await loadPedido()
+            setModoEdicao(false)
+            setCarrinhoEdit([])
+
+        } catch (error) {
+            console.error('Erro ao salvar edição:', error)
+            alert('Erro ao salvar alterações. Tente novamente.')
+        } finally {
+            setSalvando(false)
+        }
+    }
+
+    // Atualizar disponibilidade quando a data de edição muda
+    useEffect(() => {
+        if (modoEdicao && dataEventoEdit && dataEventoEdit !== pedido?.data_evento) {
+            checkDisponibilidade(dataEventoEdit)
+        }
+    }, [dataEventoEdit, modoEdicao])
 
     async function updateStatus(newStatus: StatusPedido) {
         const { error } = await supabase
@@ -732,22 +975,45 @@ export default function PedidoDetalhesPage() {
                     </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" onClick={openWhatsApp}>
-                        <Send className="mr-2 h-4 w-4" />
-                        WhatsApp
-                    </Button>
-                    <Button variant="secondary" onClick={enviarContratoWhatsApp}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Enviar Contrato
-                    </Button>
-                    <Button onClick={gerarContratoPDF} disabled={gerando}>
-                        {gerando ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                            <Download className="mr-2 h-4 w-4" />
-                        )}
-                        Gerar PDF
-                    </Button>
+                    {modoEdicao ? (
+                        <>
+                            <Button variant="outline" onClick={cancelarEdicao} disabled={salvando}>
+                                <X className="mr-2 h-4 w-4" />
+                                Cancelar
+                            </Button>
+                            <Button onClick={salvarEdicao} disabled={salvando}>
+                                {salvando ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Save className="mr-2 h-4 w-4" />
+                                )}
+                                Salvar Alterações
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={iniciarEdicao}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Editar
+                            </Button>
+                            <Button variant="outline" onClick={openWhatsApp}>
+                                <Send className="mr-2 h-4 w-4" />
+                                WhatsApp
+                            </Button>
+                            <Button variant="secondary" onClick={enviarContratoWhatsApp}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Enviar Contrato
+                            </Button>
+                            <Button onClick={gerarContratoPDF} disabled={gerando}>
+                                {gerando ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Download className="mr-2 h-4 w-4" />
+                                )}
+                                Gerar PDF
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -786,47 +1052,187 @@ export default function PedidoDetalhesPage() {
                         <CardHeader>
                             <CardTitle>Itens do Pedido</CardTitle>
                             <CardDescription>
-                                {pedido.itens_pedido?.length || 0} itens
+                                {modoEdicao ? carrinhoEdit.length : (pedido.itens_pedido?.length || 0)} itens
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Produto</TableHead>
-                                        <TableHead className="text-center">Qtd</TableHead>
-                                        <TableHead className="text-right">Preço Unit.</TableHead>
-                                        <TableHead className="text-right">Subtotal</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {pedido.itens_pedido?.map((item: ItemPedidoComProduto) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.produtos?.nome}</TableCell>
-                                            <TableCell className="text-center">{item.quantidade}</TableCell>
-                                            <TableCell className="text-right">
-                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario)}
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium">
-                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                            <div className="mt-4 flex justify-end border-t pt-4">
-                                <div className="text-lg">
-                                    <span className="text-muted-foreground">Total: </span>
-                                    <span className="font-bold">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
-                                    </span>
-                                </div>
-                            </div>
+                            {modoEdicao ? (
+                                /* Modo Edição */
+                                <>
+                                    {/* Adicionar novo produto */}
+                                    <div className="flex gap-4 mb-6">
+                                        <Select value={produtoSelecionado} onValueChange={setProdutoSelecionado}>
+                                            <SelectTrigger className="flex-1">
+                                                <SelectValue placeholder="Adicionar produto..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {produtos.map((produto) => {
+                                                    const disp = getDisponivel(produto.id)
+                                                    const jaNoCarrinho = carrinhoEdit.some(item => item.produto.id === produto.id)
+                                                    return (
+                                                        <SelectItem
+                                                            key={produto.id}
+                                                            value={produto.id}
+                                                            disabled={disp === 0 && !jaNoCarrinho}
+                                                        >
+                                                            {produto.nome} - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
+                                                            {' '}({disp} disponíveis)
+                                                        </SelectItem>
+                                                    )
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={quantidadeSelecionada}
+                                            onChange={(e) => setQuantidadeSelecionada(parseInt(e.target.value) || 1)}
+                                            className="w-24"
+                                        />
+                                        <Button type="button" onClick={addToCarrinhoEdit}>
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Tabela de itens editável */}
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Produto</TableHead>
+                                                <TableHead className="text-center">Qtd</TableHead>
+                                                <TableHead className="text-right">Preço Unit.</TableHead>
+                                                <TableHead className="text-right">Subtotal</TableHead>
+                                                <TableHead></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {carrinhoEdit.map((item, index) => (
+                                                <TableRow key={item.produto.id}>
+                                                    <TableCell className="font-medium">
+                                                        {item.produto.nome}
+                                                        {item.isNew && <Badge className="ml-2 bg-green-500">Novo</Badge>}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            max={item.disponivel}
+                                                            value={item.quantidade}
+                                                            onChange={(e) => updateQuantidadeEdit(index, parseInt(e.target.value) || 1)}
+                                                            className="w-20 text-center"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => removeFromCarrinhoEdit(index)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                    <div className="mt-4 flex justify-end border-t pt-4">
+                                        <div className="text-lg">
+                                            <span className="text-muted-foreground">Total: </span>
+                                            <span className="font-bold">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalEdit)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                /* Modo Visualização */
+                                <>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Produto</TableHead>
+                                                <TableHead className="text-center">Qtd</TableHead>
+                                                <TableHead className="text-right">Preço Unit.</TableHead>
+                                                <TableHead className="text-right">Subtotal</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {pedido.itens_pedido?.map((item: ItemPedidoComProduto) => (
+                                                <TableRow key={item.id}>
+                                                    <TableCell className="font-medium">{item.produtos?.nome}</TableCell>
+                                                    <TableCell className="text-center">{item.quantidade}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                    <div className="mt-4 flex justify-end border-t pt-4">
+                                        <div className="text-lg">
+                                            <span className="text-muted-foreground">Total: </span>
+                                            <span className="font-bold">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </CardContent>
                     </Card>
 
-                    {/* Observações */}
-                    {pedido.observacoes && (
+                    {/* Observações - Modo Edição ou Visualização */}
+                    {modoEdicao ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Dados do Pedido</CardTitle>
+                                <CardDescription>Edite as informações do pedido</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="data">Data do Evento</Label>
+                                        <Input
+                                            id="data"
+                                            type="date"
+                                            value={dataEventoEdit}
+                                            onChange={(e) => setDataEventoEdit(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="hora">Horário de Entrega</Label>
+                                        <Input
+                                            id="hora"
+                                            type="time"
+                                            value={horaEntregaEdit}
+                                            onChange={(e) => setHoraEntregaEdit(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="observacoes">Observações</Label>
+                                    <Textarea
+                                        id="observacoes"
+                                        value={observacoesEdit}
+                                        onChange={(e) => setObservacoesEdit(e.target.value)}
+                                        placeholder="Informações adicionais sobre o pedido..."
+                                        rows={3}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : pedido.observacoes && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Observações</CardTitle>
