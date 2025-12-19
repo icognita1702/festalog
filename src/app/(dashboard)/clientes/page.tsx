@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { AddressAutocomplete } from '@/components/address-autocomplete'
 import {
     Dialog,
     DialogContent,
@@ -298,14 +298,16 @@ export default function ClientesPage() {
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="endereco">Endereço Completo</Label>
-                                        <Textarea
+                                        <AddressAutocomplete
                                             id="endereco"
                                             value={formData.endereco_completo}
-                                            onChange={(e) => setFormData({ ...formData, endereco_completo: e.target.value })}
-                                            placeholder="Rua, número, bairro, cidade - UF"
-                                            rows={3}
+                                            onChange={(value) => setFormData({ ...formData, endereco_completo: value })}
+                                            placeholder="Digite o endereço..."
                                             required
                                         />
+                                        <p className="text-xs text-muted-foreground">
+                                            Comece a digitar e selecione uma sugestão
+                                        </p>
                                     </div>
                                 </div>
                                 <DialogFooter>

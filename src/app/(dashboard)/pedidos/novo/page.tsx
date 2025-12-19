@@ -24,12 +24,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2, Truck } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2, Truck, Home, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { ConversationImportDialog } from '@/components/conversation-import-dialog'
 import type { ExtractionResult } from '@/lib/conversation-analyzer'
 import { calculateFreightForAddress, getDefaultFreightConfig, type FreightConfig } from '@/lib/freight-calculator'
+import { AddressAutocomplete } from '@/components/address-autocomplete'
 
 interface ItemCarrinho {
     produto: Produto
@@ -62,6 +63,10 @@ export default function NovoPedidoPage() {
     const [calculandoFrete, setCalculandoFrete] = useState(false)
     const [erroFrete, setErroFrete] = useState('')
     const [incluirFrete, setIncluirFrete] = useState(true) // Toggle frete
+
+    // Estados para endereço do evento
+    const [usarEnderecoResidencial, setUsarEnderecoResidencial] = useState(true)
+    const [enderecoEvento, setEnderecoEvento] = useState('')
 
     async function loadData() {
         setLoading(true)
@@ -112,28 +117,41 @@ export default function NovoPedidoPage() {
         }
     }, [dataEvento])
 
-    // Calculate freight when client is selected
+    // Calculate freight when client is selected or event address changes
     useEffect(() => {
         async function calcularFrete() {
-            if (!clienteId) {
-                setFrete(0)
-                setDistanciaKm(0)
-                setErroFrete('')
-                return
-            }
+            // Determina qual endereço usar para cálculo do frete
+            let enderecoParaFrete = ''
 
-            const cliente = clientes.find(c => c.id === clienteId)
-            if (!cliente?.endereco_completo) {
-                setFrete(0)
-                setDistanciaKm(0)
-                setErroFrete('Cliente sem endereço cadastrado')
-                return
+            if (usarEnderecoResidencial) {
+                if (!clienteId) {
+                    setFrete(0)
+                    setDistanciaKm(0)
+                    setErroFrete('')
+                    return
+                }
+                const cliente = clientes.find(c => c.id === clienteId)
+                if (!cliente?.endereco_completo) {
+                    setFrete(0)
+                    setDistanciaKm(0)
+                    setErroFrete('Cliente sem endereço cadastrado')
+                    return
+                }
+                enderecoParaFrete = cliente.endereco_completo
+            } else {
+                if (!enderecoEvento) {
+                    setFrete(0)
+                    setDistanciaKm(0)
+                    setErroFrete('Informe o endereço do evento')
+                    return
+                }
+                enderecoParaFrete = enderecoEvento
             }
 
             setCalculandoFrete(true)
             setErroFrete('')
 
-            const result = await calculateFreightForAddress(cliente.endereco_completo, freightConfig)
+            const result = await calculateFreightForAddress(enderecoParaFrete, freightConfig)
 
             if (result) {
                 setFrete(result.freight)
@@ -148,7 +166,7 @@ export default function NovoPedidoPage() {
         }
 
         calcularFrete()
-    }, [clienteId, clientes])
+    }, [clienteId, clientes, usarEnderecoResidencial, enderecoEvento, freightConfig])
 
     function getDisponivel(produtoId: string): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
@@ -227,6 +245,8 @@ export default function NovoPedidoPage() {
                     total_pedido: total,
                     frete: incluirFrete ? frete : 0,
                     distancia_km: incluirFrete ? distanciaKm : 0,
+                    usar_endereco_residencial: usarEnderecoResidencial,
+                    endereco_evento: usarEnderecoResidencial ? null : enderecoEvento,
                 })
                 .select()
                 .single()
@@ -469,6 +489,63 @@ export default function NovoPedidoPage() {
                                     rows={3}
                                 />
                             </div>
+
+                            {/* Toggle Endereço do Evento */}
+                            {clienteId && (
+                                <div className="border-t pt-4 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-base flex items-center gap-2">
+                                                <Home className="h-4 w-4" />
+                                                Endereço do Evento
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                {usarEnderecoResidencial
+                                                    ? 'Usando endereço residencial do cliente'
+                                                    : 'Usando endereço customizado'}
+                                            </p>
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <span className={`text-sm ${usarEnderecoResidencial ? 'text-muted-foreground' : 'font-medium'}`}>
+                                                Customizado
+                                            </span>
+                                            <div
+                                                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${usarEnderecoResidencial ? 'bg-primary' : 'bg-gray-300'
+                                                    }`}
+                                                onClick={() => setUsarEnderecoResidencial(!usarEnderecoResidencial)}
+                                            >
+                                                <div
+                                                    className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${usarEnderecoResidencial ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`}
+                                                />
+                                            </div>
+                                            <span className={`text-sm ${usarEnderecoResidencial ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                Residencial
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {usarEnderecoResidencial ? (
+                                        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-sm">
+                                                {clientes.find(c => c.id === clienteId)?.endereco_completo || 'Cliente sem endereço'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="endereco-evento">Endereço do Evento *</Label>
+                                            <AddressAutocomplete
+                                                id="endereco-evento"
+                                                value={enderecoEvento}
+                                                onChange={setEnderecoEvento}
+                                                placeholder="Digite o endereço do evento..."
+                                                required={!usarEnderecoResidencial}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

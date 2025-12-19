@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AddressAutocomplete } from '@/components/address-autocomplete'
 import {
     Select,
     SelectContent,
@@ -24,22 +25,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import {
-    ArrowLeft,
-    Loader2,
-    FileText,
-    Phone,
-    MapPin,
-    Calendar,
-    Send,
-    Download,
-    Trash2,
-    User,
-    Pencil,
-    Plus,
-    X,
-    Save
-} from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, Trash2, Loader2, Pencil, Plus, X, Save, Home, MapPin, Phone, Calendar, User } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
@@ -108,6 +94,10 @@ export default function PedidoDetalhesPage() {
     const [produtoSelecionado, setProdutoSelecionado] = useState('')
     const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1)
 
+    // Estados para endereço do evento na edição
+    const [usarEnderecoResidencialEdit, setUsarEnderecoResidencialEdit] = useState(true)
+    const [enderecoEventoEdit, setEnderecoEventoEdit] = useState('')
+
     async function loadPedido() {
         setLoading(true)
         const { data, error } = await supabase
@@ -166,6 +156,10 @@ export default function PedidoDetalhesPage() {
         setDataEventoEdit(pedido.data_evento)
         setHoraEntregaEdit((pedido as any).hora_entrega || '14:00')
         setObservacoesEdit(pedido.observacoes || '')
+
+        // Preenche campos de endereço do evento
+        setUsarEnderecoResidencialEdit((pedido as any).usar_endereco_residencial !== false)
+        setEnderecoEventoEdit((pedido as any).endereco_evento || '')
 
         // Converte itens do pedido para carrinho editável
         const itensEdit: ItemCarrinhoEdit[] = (pedido.itens_pedido || []).map((item: ItemPedidoComProduto) => ({
@@ -271,7 +265,9 @@ export default function PedidoDetalhesPage() {
                     data_evento: dataEventoEdit,
                     hora_entrega: horaEntregaEdit,
                     observacoes: observacoesEdit,
-                    total_pedido: totalEdit
+                    total_pedido: totalEdit,
+                    usar_endereco_residencial: usarEnderecoResidencialEdit,
+                    endereco_evento: usarEnderecoResidencialEdit ? null : enderecoEventoEdit,
                 })
                 .eq('id', pedidoId)
 
@@ -1229,6 +1225,60 @@ export default function PedidoDetalhesPage() {
                                         placeholder="Informações adicionais sobre o pedido..."
                                         rows={3}
                                     />
+                                </div>
+
+                                {/* Toggle Endereço do Evento */}
+                                <div className="border-t pt-4 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-base flex items-center gap-2">
+                                                <Home className="h-4 w-4" />
+                                                Endereço do Evento
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                {usarEnderecoResidencialEdit
+                                                    ? 'Usando endereço residencial do cliente'
+                                                    : 'Usando endereço customizado'}
+                                            </p>
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <span className={`text-sm ${usarEnderecoResidencialEdit ? 'text-muted-foreground' : 'font-medium'}`}>
+                                                Customizado
+                                            </span>
+                                            <div
+                                                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${usarEnderecoResidencialEdit ? 'bg-primary' : 'bg-gray-300'
+                                                    }`}
+                                                onClick={() => setUsarEnderecoResidencialEdit(!usarEnderecoResidencialEdit)}
+                                            >
+                                                <div
+                                                    className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${usarEnderecoResidencialEdit ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`}
+                                                />
+                                            </div>
+                                            <span className={`text-sm ${usarEnderecoResidencialEdit ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                Residencial
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {usarEnderecoResidencialEdit ? (
+                                        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-sm">
+                                                {pedido.clientes?.endereco_completo || 'Cliente sem endereço'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="endereco-evento-edit">Endereço do Evento</Label>
+                                            <AddressAutocomplete
+                                                id="endereco-evento-edit"
+                                                value={enderecoEventoEdit}
+                                                onChange={setEnderecoEventoEdit}
+                                                placeholder="Digite o endereço do evento..."
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
