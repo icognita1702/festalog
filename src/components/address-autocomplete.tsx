@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Loader2, MapPin } from 'lucide-react'
 
@@ -14,6 +14,11 @@ interface AddressAutocompleteProps {
     id?: string
 }
 
+interface Suggestion {
+    placeId: string
+    description: string
+}
+
 export function AddressAutocomplete({
     value,
     onChange,
@@ -24,15 +29,23 @@ export function AddressAutocomplete({
     id,
 }: AddressAutocompleteProps) {
     const inputRef = useRef<HTMLInputElement>(null)
-    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+    const [showSuggestions, setShowSuggestions] = useState(false)
     const [isGoogleLoaded, setIsGoogleLoaded] = useState(false)
+    const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null)
+    const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null)
+    const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null)
 
     useEffect(() => {
-        // Verifica se o Google Maps já foi carregado
         const checkGoogleLoaded = () => {
             if (typeof window !== 'undefined' && window.google?.maps?.places) {
                 setIsGoogleLoaded(true)
+                autocompleteServiceRef.current = new google.maps.places.AutocompleteService()
+                // PlacesService needs a div element
+                const div = document.createElement('div')
+                placesServiceRef.current = new google.maps.places.PlacesService(div)
+                sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken()
                 return true
             }
             return false
@@ -40,7 +53,6 @@ export function AddressAutocomplete({
 
         if (checkGoogleLoaded()) return
 
-        // Polling para esperar o carregamento
         const interval = setInterval(() => {
             if (checkGoogleLoaded()) {
                 clearInterval(interval)
@@ -50,52 +62,88 @@ export function AddressAutocomplete({
         return () => clearInterval(interval)
     }, [])
 
-    useEffect(() => {
-        if (!isGoogleLoaded || !inputRef.current || autocompleteRef.current) return
+    const fetchSuggestions = useCallback(async (input: string) => {
+        if (!input || input.length < 3 || !autocompleteServiceRef.current) {
+            setSuggestions([])
+            return
+        }
+
+        setIsLoading(true)
 
         try {
-            // Cria o autocomplete
-            autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
+            const request: google.maps.places.AutocompletionRequest = {
+                input,
                 componentRestrictions: { country: 'br' },
-                fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-                types: ['address'],
-            })
+                sessionToken: sessionTokenRef.current!,
+            }
 
-            // Listener para quando um lugar é selecionado
-            autocompleteRef.current.addListener('place_changed', () => {
-                const place = autocompleteRef.current?.getPlace()
-                if (place?.formatted_address) {
-                    onChange(place.formatted_address)
-                } else if (place?.name) {
-                    onChange(place.name)
-                }
+            autocompleteServiceRef.current.getPlacePredictions(request, (predictions, status) => {
                 setIsLoading(false)
+                if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+                    setSuggestions(predictions.map(p => ({
+                        placeId: p.place_id,
+                        description: p.description,
+                    })))
+                    setShowSuggestions(true)
+                } else {
+                    setSuggestions([])
+                }
             })
         } catch (error) {
-            console.error('Erro ao inicializar autocomplete:', error)
+            console.error('Erro ao buscar sugestões:', error)
+            setIsLoading(false)
+            setSuggestions([])
         }
-    }, [isGoogleLoaded, onChange])
+    }, [])
 
-    // Sincroniza o valor externo com o input
-    useEffect(() => {
-        if (inputRef.current && inputRef.current.value !== value) {
-            inputRef.current.value = value
+    const handleSelect = useCallback((suggestion: Suggestion) => {
+        if (!placesServiceRef.current) {
+            onChange(suggestion.description)
+            setSuggestions([])
+            setShowSuggestions(false)
+            return
         }
-    }, [value])
+
+        placesServiceRef.current.getDetails(
+            {
+                placeId: suggestion.placeId,
+                fields: ['formatted_address'],
+                sessionToken: sessionTokenRef.current!,
+            },
+            (place, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && place?.formatted_address) {
+                    onChange(place.formatted_address)
+                } else {
+                    onChange(suggestion.description)
+                }
+                // Reset session token after selection
+                sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken()
+                setSuggestions([])
+                setShowSuggestions(false)
+            }
+        )
+    }, [onChange])
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        onChange(e.target.value)
-        if (e.target.value.length > 2) {
-            setIsLoading(true)
-        }
+        const newValue = e.target.value
+        onChange(newValue)
+        fetchSuggestions(newValue)
     }
 
     const handleBlur = () => {
-        setIsLoading(false)
+        // Delay to allow click on suggestion
+        setTimeout(() => {
+            setShowSuggestions(false)
+        }, 200)
+    }
+
+    const handleFocus = () => {
+        if (suggestions.length > 0) {
+            setShowSuggestions(true)
+        }
     }
 
     if (!isGoogleLoaded) {
-        // Fallback para input normal se Google não carregou
         return (
             <div className="relative">
                 <Input
@@ -117,9 +165,10 @@ export function AddressAutocomplete({
             <Input
                 ref={inputRef}
                 id={id}
-                defaultValue={value}
+                value={value}
                 onChange={handleInputChange}
                 onBlur={handleBlur}
+                onFocus={handleFocus}
                 placeholder={placeholder}
                 required={required}
                 disabled={disabled}
@@ -129,6 +178,23 @@ export function AddressAutocomplete({
             <MapPin className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             {isLoading && (
                 <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+
+            {/* Suggestions dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {suggestions.map((suggestion) => (
+                        <button
+                            key={suggestion.placeId}
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                            onClick={() => handleSelect(suggestion)}
+                        >
+                            <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span>{suggestion.description}</span>
+                        </button>
+                    ))}
+                </div>
             )}
         </div>
     )
