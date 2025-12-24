@@ -181,14 +181,33 @@ export default function RotasPage() {
             // Usar Nominatim (OSM) para geocodificar - 100% GRATUITO
             const geocode = async (endereco: string): Promise<number[] | null> => {
                 const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}&countrycodes=br&limit=1`
-                const res = await fetch(url, {
-                    headers: { 'User-Agent': 'FestaLog/1.0' }
-                })
-                const data = await res.json()
-                if (data && data.length > 0) {
-                    return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+                try {
+                    const res = await fetch(url, {
+                        headers: { 'User-Agent': 'FestaLog/1.0' }
+                    })
+
+                    // Verifica se a resposta foi bem sucedida
+                    if (!res.ok) {
+                        console.error(`Erro ao geocodificar: ${res.status} ${res.statusText}`)
+                        return null
+                    }
+
+                    const text = await res.text()
+                    // Verifica se a resposta é um JSON válido
+                    if (!text.startsWith('[') && !text.startsWith('{')) {
+                        console.error(`Resposta inválida do serviço de geocodificação: ${text}`)
+                        return null
+                    }
+
+                    const data = JSON.parse(text)
+                    if (data && data.length > 0) {
+                        return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+                    }
+                    return null
+                } catch (error) {
+                    console.error(`Erro ao geocodificar endereço "${endereco}":`, error)
+                    return null
                 }
-                return null
             }
 
             // Geocodificar endereços dos clientes

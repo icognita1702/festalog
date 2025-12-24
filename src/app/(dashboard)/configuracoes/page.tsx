@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +16,11 @@ import {
     Loader2,
     Check,
     ExternalLink,
-    Star
+    Star,
+    Palette,
+    Sun,
+    Moon,
+    Monitor
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -57,6 +62,12 @@ export default function ConfiguracoesPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [mounted, setMounted] = useState(false)
+    const { theme, setTheme } = useTheme()
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     useEffect(() => {
         loadConfig()
@@ -143,7 +154,7 @@ export default function ConfiguracoesPage() {
             </div>
 
             <Tabs defaultValue="empresa" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="empresa" className="flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
                         Empresa
@@ -159,6 +170,10 @@ export default function ConfiguracoesPage() {
                     <TabsTrigger value="google" className="flex items-center gap-2">
                         <Star className="h-4 w-4" />
                         Google
+                    </TabsTrigger>
+                    <TabsTrigger value="aparencia" className="flex items-center gap-2">
+                        <Palette className="h-4 w-4" />
+                        Aparência
                     </TabsTrigger>
                 </TabsList>
 
@@ -418,6 +433,71 @@ export default function ConfiguracoesPage() {
                                     </Button>
                                 </div>
                             </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Aparência */}
+                <TabsContent value="aparencia">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Tema do Sistema</CardTitle>
+                            <CardDescription>
+                                Escolha entre modo claro, escuro ou automático
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {mounted && (
+                                <div className="grid grid-cols-3 gap-4 max-w-md">
+                                    <button
+                                        onClick={() => setTheme('light')}
+                                        className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${theme === 'light'
+                                                ? 'border-primary bg-primary/10'
+                                                : 'border-muted hover:border-primary/50'
+                                            }`}
+                                    >
+                                        <div className="h-16 w-16 rounded-lg bg-white border shadow-sm flex items-center justify-center">
+                                            <Sun className="h-8 w-8 text-yellow-500" />
+                                        </div>
+                                        <span className={`text-sm font-medium ${theme === 'light' ? 'text-primary' : ''}`}>
+                                            Claro
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setTheme('dark')}
+                                        className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${theme === 'dark'
+                                                ? 'border-primary bg-primary/10'
+                                                : 'border-muted hover:border-primary/50'
+                                            }`}
+                                    >
+                                        <div className="h-16 w-16 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center">
+                                            <Moon className="h-8 w-8 text-slate-300" />
+                                        </div>
+                                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-primary' : ''}`}>
+                                            Escuro
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setTheme('system')}
+                                        className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${theme === 'system'
+                                                ? 'border-primary bg-primary/10'
+                                                : 'border-muted hover:border-primary/50'
+                                            }`}
+                                    >
+                                        <div className="h-16 w-16 rounded-lg bg-gradient-to-br from-white to-slate-900 border flex items-center justify-center">
+                                            <Monitor className="h-8 w-8 text-slate-500" />
+                                        </div>
+                                        <span className={`text-sm font-medium ${theme === 'system' ? 'text-primary' : ''}`}>
+                                            Sistema
+                                        </span>
+                                    </button>
+                                </div>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-4">
+                                A opção "Sistema" segue automaticamente a preferência do seu dispositivo.
+                            </p>
                         </CardContent>
                     </Card>
                 </TabsContent>
