@@ -57,12 +57,10 @@ export default function NovoPedidoPage() {
     const [importedData, setImportedData] = useState<ExtractionResult | null>(null)
     const [creatingClient, setCreatingClient] = useState(false)
 
-    // Freight calculation states
+    // Freight states - valores tabelados por bairro
     const [frete, setFrete] = useState(0)
-    const [distanciaKm, setDistanciaKm] = useState(0)
-    const [calculandoFrete, setCalculandoFrete] = useState(false)
-    const [erroFrete, setErroFrete] = useState('')
-    const [incluirFrete, setIncluirFrete] = useState(true) // Toggle frete
+    const [freteCustomizado, setFreteCustomizado] = useState('')
+    const [tipoFrete, setTipoFrete] = useState<'isento' | '15' | '20' | '25' | '30' | 'outro'>('isento')
 
     // Estados para endereço do evento
     const [usarEnderecoResidencial, setUsarEnderecoResidencial] = useState(true)
@@ -117,56 +115,16 @@ export default function NovoPedidoPage() {
         }
     }, [dataEvento])
 
-    // Calculate freight when client is selected or event address changes
+    // Atualiza frete quando tipo muda
     useEffect(() => {
-        async function calcularFrete() {
-            // Determina qual endereço usar para cálculo do frete
-            let enderecoParaFrete = ''
-
-            if (usarEnderecoResidencial) {
-                if (!clienteId) {
-                    setFrete(0)
-                    setDistanciaKm(0)
-                    setErroFrete('')
-                    return
-                }
-                const cliente = clientes.find(c => c.id === clienteId)
-                if (!cliente?.endereco_completo) {
-                    setFrete(0)
-                    setDistanciaKm(0)
-                    setErroFrete('Cliente sem endereço cadastrado')
-                    return
-                }
-                enderecoParaFrete = cliente.endereco_completo
-            } else {
-                if (!enderecoEvento) {
-                    setFrete(0)
-                    setDistanciaKm(0)
-                    setErroFrete('Informe o endereço do evento')
-                    return
-                }
-                enderecoParaFrete = enderecoEvento
-            }
-
-            setCalculandoFrete(true)
-            setErroFrete('')
-
-            const result = await calculateFreightForAddress(enderecoParaFrete, freightConfig)
-
-            if (result) {
-                setFrete(result.freight)
-                setDistanciaKm(result.distanceKm)
-            } else {
-                setFrete(freightConfig.minimumFreight) // Minimum freight as fallback
-                setDistanciaKm(0)
-                setErroFrete('Não foi possível calcular a distância. Usando frete mínimo.')
-            }
-
-            setCalculandoFrete(false)
+        if (tipoFrete === 'isento') {
+            setFrete(0)
+        } else if (tipoFrete === 'outro') {
+            setFrete(parseFloat(freteCustomizado) || 0)
+        } else {
+            setFrete(parseFloat(tipoFrete))
         }
-
-        calcularFrete()
-    }, [clienteId, clientes, usarEnderecoResidencial, enderecoEvento, freightConfig])
+    }, [tipoFrete, freteCustomizado])
 
     function getDisponivel(produtoId: string): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
@@ -221,7 +179,7 @@ export default function NovoPedidoPage() {
     }
 
     const subtotal = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
-    const total = subtotal + (incluirFrete ? frete : 0)
+    const total = subtotal + frete
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -243,8 +201,8 @@ export default function NovoPedidoPage() {
                     hora_entrega: horaEntrega,
                     observacoes,
                     total_pedido: total,
-                    frete: incluirFrete ? frete : 0,
-                    distancia_km: incluirFrete ? distanciaKm : 0,
+                    frete: frete,
+                    distancia_km: 0,
                     usar_endereco_residencial: usarEnderecoResidencial,
                     endereco_evento: usarEnderecoResidencial ? null : enderecoEvento,
                 })
@@ -694,37 +652,55 @@ export default function NovoPedidoPage() {
                                             </span>
                                         </div>
 
-                                        {/* Freight Toggle */}
-                                        <div className="flex items-center justify-between text-sm">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={incluirFrete}
-                                                    onChange={(e) => setIncluirFrete(e.target.checked)}
-                                                    className="h-4 w-4 rounded border-gray-300"
-                                                />
-                                                <span className="flex items-center gap-1">
-                                                    <Truck className="h-3 w-3" />
-                                                    Incluir Frete
-                                                    {incluirFrete && distanciaKm > 0 && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            ({distanciaKm} km)
-                                                        </span>
-                                                    )}
+                                        {/* Seleção de Frete Tabelado */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Truck className="h-4 w-4" />
+                                                <span className="font-medium">Frete</span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { value: 'isento', label: 'Isento' },
+                                                    { value: '15', label: 'R$ 15' },
+                                                    { value: '20', label: 'R$ 20' },
+                                                    { value: '25', label: 'R$ 25' },
+                                                    { value: '30', label: 'R$ 30' },
+                                                    { value: 'outro', label: 'Outro' },
+                                                ].map((opcao) => (
+                                                    <button
+                                                        key={opcao.value}
+                                                        type="button"
+                                                        onClick={() => setTipoFrete(opcao.value as typeof tipoFrete)}
+                                                        className={`px-3 py-2 text-xs rounded-md border transition-colors ${tipoFrete === opcao.value
+                                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                                : 'bg-background hover:bg-muted border-input'
+                                                            }`}
+                                                    >
+                                                        {opcao.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {tipoFrete === 'outro' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-muted-foreground">R$</span>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={freteCustomizado}
+                                                        onChange={(e) => setFreteCustomizado(e.target.value)}
+                                                        placeholder="0,00"
+                                                        className="h-8 w-24"
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between text-sm pt-1">
+                                                <span className="text-muted-foreground">Valor do frete:</span>
+                                                <span className="font-medium">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(frete)}
                                                 </span>
-                                            </label>
-                                            <span className={`flex items-center gap-2 ${!incluirFrete ? 'line-through text-muted-foreground' : ''}`}>
-                                                {calculandoFrete ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                ) : (
-                                                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(frete)
-                                                )}
-                                            </span>
+                                            </div>
                                         </div>
-
-                                        {erroFrete && (
-                                            <p className="text-xs text-amber-600">{erroFrete}</p>
-                                        )}
 
                                         {/* Total */}
                                         <div className="flex justify-between text-lg font-bold border-t pt-2">
