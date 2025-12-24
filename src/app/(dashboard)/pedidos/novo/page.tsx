@@ -528,9 +528,19 @@ export default function NovoPedidoPage() {
                                     {usarEnderecoResidencial ? (
                                         <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm">
-                                                {clientes.find(c => c.id === clienteId)?.endereco_completo || 'Cliente sem endereço'}
-                                            </span>
+                                            {clientes.find(c => c.id === clienteId)?.endereco_completo ? (
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientes.find(c => c.id === clienteId)?.endereco_completo || '')}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm hover:text-primary hover:underline transition-colors"
+                                                    title="Abrir no Google Maps"
+                                                >
+                                                    {clientes.find(c => c.id === clienteId)?.endereco_completo}
+                                                </a>
+                                            ) : (
+                                                <span className="text-sm text-muted-foreground">Cliente sem endereço</span>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="grid gap-2">

@@ -389,10 +389,16 @@ export default function ClientesPage() {
                                             </TableCell>
                                             <TableCell>{cliente.cpf || '-'}</TableCell>
                                             <TableCell className="max-w-[200px] truncate">
-                                                <div className="flex items-center gap-1">
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cliente.endereco_completo)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1 hover:text-primary hover:underline cursor-pointer transition-colors"
+                                                    title="Abrir no Google Maps"
+                                                >
                                                     <MapPin className="h-3 w-3 text-muted-foreground" />
                                                     {cliente.endereco_completo}
-                                                </div>
+                                                </a>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">

@@ -1264,9 +1264,19 @@ export default function PedidoDetalhesPage() {
                                     {usarEnderecoResidencialEdit ? (
                                         <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm">
-                                                {pedido.clientes?.endereco_completo || 'Cliente sem endereço'}
-                                            </span>
+                                            {pedido.clientes?.endereco_completo ? (
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pedido.clientes.endereco_completo)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm hover:text-primary hover:underline transition-colors"
+                                                    title="Abrir no Google Maps"
+                                                >
+                                                    {pedido.clientes.endereco_completo}
+                                                </a>
+                                            ) : (
+                                                <span className="text-sm text-muted-foreground">Cliente sem endereço</span>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="grid gap-2">
@@ -1323,7 +1333,19 @@ export default function PedidoDetalhesPage() {
                             </div>
                             <div className="flex items-start gap-2">
                                 <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                                <p className="text-sm">{pedido.clientes?.endereco_completo}</p>
+                                {pedido.clientes?.endereco_completo ? (
+                                    <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pedido.clientes.endereco_completo)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm hover:text-primary hover:underline transition-colors"
+                                        title="Abrir no Google Maps"
+                                    >
+                                        {pedido.clientes.endereco_completo}
+                                    </a>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Endereço não informado</p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

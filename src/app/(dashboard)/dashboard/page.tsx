@@ -399,9 +399,19 @@ export default function DashboardPage() {
                                     <div className="grid gap-2 text-sm">
                                         <div className="flex items-start gap-2">
                                             <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                            <span className="text-muted-foreground">
-                                                {pedido.clientes?.endereco_completo || 'Endereço não informado'}
-                                            </span>
+                                            {pedido.clientes?.endereco_completo ? (
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pedido.clientes.endereco_completo)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-muted-foreground hover:text-primary hover:underline transition-colors"
+                                                    title="Abrir no Google Maps"
+                                                >
+                                                    {pedido.clientes.endereco_completo}
+                                                </a>
+                                            ) : (
+                                                <span className="text-muted-foreground">Endereço não informado</span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Phone className="h-4 w-4 text-muted-foreground" />

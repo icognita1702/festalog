@@ -552,10 +552,16 @@ export default function RotasPage() {
                                                 {statusLabels[entrega.pedido.status]}
                                             </Badge>
                                         </div>
-                                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entrega.pedido.clientes?.endereco_completo || '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-muted-foreground flex items-center gap-1 hover:text-primary hover:underline transition-colors"
+                                            title="Abrir no Google Maps"
+                                        >
                                             <MapPin className="h-3 w-3" />
                                             {entrega.pedido.clientes?.endereco_completo}
-                                        </p>
+                                        </a>
                                     </div>
                                     <div className="flex gap-2">
                                         <Button
