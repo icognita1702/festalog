@@ -1,8 +1,30 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { z } from 'zod'
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '')
 
-const systemPrompt = `Você é o assistente virtual da Lu Festas, uma locadora de materiais para festas em Belo Horizonte.
+// ============ Schemas ============
+
+const IntencaoSchema = z.enum([
+    'disponibilidade',
+    'preco',
+    'orcamento',
+    'atendente',
+    'saudacao',
+    'geral'
+])
+
+const ClassificacaoResponseSchema = z.object({
+    intencao: IntencaoSchema,
+    confianca: z.number().min(0).max(1),
+    razao: z.string().optional()
+})
+
+export type TipoIntencao = z.infer<typeof IntencaoSchema>
+
+// ============ System Prompts ============
+
+const CHAT_SYSTEM_PROMPT = `Você é o assistente virtual da Lu Festas, uma locadora de materiais para festas em Belo Horizonte.
 
 SOBRE A EMPRESA:
 - Nome: Lu Festas
@@ -17,33 +39,22 @@ SERVIÇOS OFERECIDOS:
 - Locação de caixas térmicas
 - Entrega e recolhimento inclusos na região de BH
 
-REGRAS DE ATENDIMENTO:
+DIRETRIZES DE RESPOSTA:
 1. Seja simpático, objetivo e profissional
-2. Use emojis com moderação para deixar a conversa amigável
-3. Para orçamentos, sempre peça: data do evento, endereço e lista de itens
-4. Para verificar disponibilidade, pergunte a data
-5. NÃO invente preços - diga que vai verificar e retornar
-6. Se a pergunta for muito complexa ou precisar de intervenção humana, diga educadamente que um atendente vai entrar em contato
-7. Sempre ofereça opções quando possível
-8. Responda sempre em português brasileiro
+2. Use emojis com moderação
+3. Para orçamentos: peça data, endereço e itens
+4. Para disponibilidade: pergunte a data
+5. NÃO invente preços
+6. Se complexo: encaminhe para atendente humano
+7. Respostas CURTAS (WhatsApp)`
 
-FLUXO TÍPICO:
-1. Saudação → Oferecer menu de opções
-2. Disponibilidade → Pedir data → Consultar sistema
-3. Orçamento → Pedir data, endereço e itens → Calcular
-4. Dúvidas → Responder ou encaminhar para atendente
-
-IMPORTANTE:
-- Nunca compartilhe informações falsas
-- Se não souber algo, admita e ofereça ajuda de um atendente
-- Mantenha respostas concisas (WhatsApp não é e-mail)
-`
+// ============ Public API ============
 
 export async function gerarRespostaIA(mensagemUsuario: string, historicoConversa?: string): Promise<string> {
     try {
         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
-        const prompt = `${systemPrompt}
+        const prompt = `${CHAT_SYSTEM_PROMPT}
 
 ${historicoConversa ? `HISTÓRICO DA CONVERSA:\n${historicoConversa}\n\n` : ''}
 MENSAGEM DO CLIENTE:
@@ -52,8 +63,7 @@ ${mensagemUsuario}
 Responda de forma natural e útil:`
 
         const result = await model.generateContent(prompt)
-        const response = await result.response
-        const text = response.text()
+        const text = result.response.text()
 
         return text || 'Desculpe, não consegui processar sua mensagem. Um atendente entrará em contato.'
     } catch (error) {
@@ -62,33 +72,74 @@ Responda de forma natural e útil:`
     }
 }
 
-export async function classificarIntencao(mensagem: string): Promise<'disponibilidade' | 'preco' | 'orcamento' | 'atendente' | 'saudacao' | 'geral'> {
-    const msgLower = mensagem.toLowerCase()
+/**
+ * Classifica a intenção usando regras locais (rápido) ou fallback para IA (inteligente)
+ */
+export async function classificarIntencao(mensagem: string): Promise<TipoIntencao> {
+    const msgLower = mensagem.toLowerCase().trim()
 
-    // Palavras-chave para classificação rápida (sem usar IA)
-    const intencoes = {
-        saudacao: ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'e ai', 'hey', 'hi'],
-        disponibilidade: ['disponível', 'disponivel', 'tem', 'livre', 'data', 'dia', 'agenda', 'vago'],
-        preco: ['preço', 'preco', 'valor', 'quanto', 'custa', 'tabela', 'valores'],
-        orcamento: ['orçamento', 'orcamento', 'alugar', 'reservar', 'quero', 'preciso', 'festa'],
-        atendente: ['atendente', 'humano', 'pessoa', 'falar', 'ligar', 'ajuda'],
+    // 1. Tentativa Rápida (Heurística Local)
+
+    // Menu numérico
+    if (/^[1-4]$/.test(msgLower)) {
+        const map: Record<string, TipoIntencao> = { '1': 'disponibilidade', '2': 'preco', '3': 'orcamento', '4': 'atendente' }
+        return map[msgLower] || 'geral'
     }
 
-    for (const [intencao, palavras] of Object.entries(intencoes)) {
-        if (palavras.some(p => msgLower.includes(p))) {
-            return intencao as 'disponibilidade' | 'preco' | 'orcamento' | 'atendente' | 'saudacao'
-        }
+    const keywords: Record<string, TipoIntencao> = {
+        'disponibilidade': 'disponibilidade', 'disponivel': 'disponibilidade', 'agenda': 'disponibilidade',
+        'preço': 'preco', 'preco': 'preco', 'valor': 'preco', 'custa': 'preco',
+        'orçamento': 'orcamento', 'alugar': 'orcamento', 'reservar': 'orcamento',
+        'atendente': 'atendente', 'humano': 'atendente', 'falar com': 'atendente',
+        'oi': 'saudacao', 'ola': 'saudacao', 'bom dia': 'saudacao'
     }
 
-    // Verifica números (menu interativo)
-    if (/^[1-4]$/.test(mensagem.trim())) {
-        const opcoes: Record<string, 'disponibilidade' | 'preco' | 'orcamento' | 'atendente'> = {
-            '1': 'disponibilidade',
-            '2': 'preco',
-            '3': 'orcamento',
-            '4': 'atendente',
+    // Verifica palavras exatas ou com boundary (evita 'oi' dentro de 'coisas')
+    for (const [key, val] of Object.entries(keywords)) {
+        // Escapa caracteres especiais para regex se necessário (aqui são simples)
+        // \b garante que 'oi' não dê match em 'coisas'
+        const regex = new RegExp(`\\b${key}\\b`, 'i')
+        if (regex.test(mensagem)) return val
+    }
+
+    // 2. Classificação via IA (Gemini) se heurística falhar
+    if (msgLower.length < 5) return 'geral'
+
+    try {
+        return await classificarViaGemini(mensagem)
+    } catch (error) {
+        console.warn('Falha na classificação via IA, fallback para geral:', error)
+        return 'geral'
+    }
+}
+
+async function classificarViaGemini(mensagem: string): Promise<TipoIntencao> {
+    const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+            responseMimeType: 'application/json'
         }
-        return opcoes[mensagem.trim()]
+    })
+
+    const prompt = `Classifique a intenção desta mensagem de WhatsApp para uma locadora de festas.
+Categorias possíveis: ${IntencaoSchema.options.map(o => `"${o}"`).join(', ')}.
+
+Mensagem: "${mensagem}"
+
+Responda APENAS JSON: { "intencao": "...", "confianca": number }`
+
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()
+
+    try {
+        const parsed = JSON.parse(text)
+        const validated = ClassificacaoResponseSchema.safeParse(parsed)
+
+        if (validated.success && validated.data.confianca > 0.6) {
+            return validated.data.intencao
+        }
+    } catch (e) {
+        // Ignorar
     }
 
     return 'geral'
