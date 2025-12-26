@@ -31,6 +31,7 @@ import { ptBR } from 'date-fns/locale'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { supabase } from '@/lib/supabase'
 import type { PedidoCompleto, StatusPedido, ItemPedido, Produto, DisponibilidadeProduto } from '@/lib/database.types'
+import { PaymentSection } from '@/components/payment-section'
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -1367,6 +1368,15 @@ export default function PedidoDetalhesPage() {
                             </p>
                         </CardContent>
                     </Card>
+
+                    {/* Pagamentos */}
+                    {!modoEdicao && (
+                        <PaymentSection
+                            pedidoId={pedidoId}
+                            totalPedido={pedido.total_pedido}
+                            onPaymentChange={loadPedido}
+                        />
+                    )}
 
                     {/* Ações */}
                     <Card className="border-destructive">

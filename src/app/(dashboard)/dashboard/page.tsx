@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
+import { Overview } from '@/components/dashboard/overview'
+import { TopItems } from '@/components/dashboard/top-items'
 import {
     Dialog,
     DialogContent,
@@ -23,9 +25,15 @@ import {
     MapPin,
     Phone,
     Loader2,
-    ExternalLink
+    ExternalLink,
+    PieChart,
+    BarChart3
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format } from 'date-fns/format'
+import { subMonths } from 'date-fns/subMonths'
+import { startOfMonth } from 'date-fns/startOfMonth'
+import { endOfMonth } from 'date-fns/endOfMonth'
+import { eachMonthOfInterval } from 'date-fns/eachMonthOfInterval'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -66,31 +74,32 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true)
     const [pedidosPorData, setPedidosPorData] = useState<Record<string, number>>({})
 
+    // Novos estados para gráficos
+    const [revenueData, setRevenueData] = useState<{ name: string; total: number }[]>([])
+    const [topItemsData, setTopItemsData] = useState<{ name: string; quantity: number }[]>([])
+
     useEffect(() => {
         async function loadData() {
             try {
                 const hoje = format(new Date(), 'yyyy-MM-dd')
                 const inicioMes = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
 
-                // Entregas de hoje
+                // --- STATS ---
                 const { count: entregasHoje } = await supabase
                     .from('pedidos')
                     .select('*', { count: 'exact', head: true })
                     .eq('data_evento', hoje)
                     .not('status', 'eq', 'orcamento')
 
-                // Pedidos pendentes (não finalizados)
                 const { count: pedidosPendentes } = await supabase
                     .from('pedidos')
                     .select('*', { count: 'exact', head: true })
                     .not('status', 'in', '("finalizado","orcamento")')
 
-                // Total de clientes
                 const { count: totalClientes } = await supabase
                     .from('clientes')
                     .select('*', { count: 'exact', head: true })
 
-                // Faturamento do mês
                 const { data: faturamento } = await supabase
                     .from('pedidos')
                     .select('total_pedido')
@@ -106,7 +115,7 @@ export default function DashboardPage() {
                     faturamentoMes,
                 })
 
-                // Pedidos recentes
+                // --- RECENTES ---
                 const { data: pedidos } = await supabase
                     .from('pedidos')
                     .select('*, clientes(*)')
@@ -115,7 +124,7 @@ export default function DashboardPage() {
 
                 setPedidosRecentes((pedidos as PedidoComCliente[]) || [])
 
-                // Carregar contagem de pedidos por data para o calendário
+                // --- CALENDÁRIO ---
                 const { data: todasDatas } = await supabase
                     .from('pedidos')
                     .select('data_evento')
@@ -128,6 +137,59 @@ export default function DashboardPage() {
                     })
                     setPedidosPorData(contagem)
                 }
+
+                // --- GRÁFICO DE FATURAMENTO (Últimos 6 meses) ---
+                const end = new Date()
+                const start = subMonths(startOfMonth(end), 5)
+                const months = eachMonthOfInterval({ start, end })
+
+                // Busca otimizada: agrupar por mês via SQL seria ideal, mas via JS funciona para volumetria baixa
+                const { data: pedidosFaturamento } = await supabase
+                    .from('pedidos')
+                    .select('created_at, total_pedido')
+                    .gte('created_at', start.toISOString())
+                    .eq('status', 'finalizado')
+
+                const chartData = months.map((month: Date) => {
+                    const monthKey = format(month, 'yyyy-MM')
+                    const total = pedidosFaturamento
+                        ?.filter(p => p.created_at && p.created_at.startsWith(monthKey))
+                        .reduce((acc, p) => acc + (p.total_pedido || 0), 0) || 0
+
+                    return {
+                        name: format(month, 'MMM', { locale: ptBR }).toUpperCase(),
+                        total
+                    }
+                })
+                setRevenueData(chartData)
+
+                // --- GRÁFICO TOP ITENS ---
+                // Supabase type workaround: selecionando * para evitar erro estático se 'itens' não estiver no tipo gerado
+                const { data: pedidosItens } = await supabase
+                    .from('pedidos')
+                    .select('*')
+                    .limit(100)
+
+                const itemCounts: Record<string, number> = {}
+                pedidosItens?.forEach((p: any) => {
+                    if (Array.isArray(p.itens)) {
+                        p.itens.forEach((item: any) => {
+                            // Tenta normalizar nome se for objeto ou string
+                            const nome = typeof item === 'string' ? item : item.nome || JSON.stringify(item)
+                            // Remove quantidades "10x Cadeira" -> "Cadeira" (simplificação)
+                            const cleanName = nome.replace(/^\d+x?\s*/i, '').trim()
+                            itemCounts[cleanName] = (itemCounts[cleanName] || 0) + 1
+                        })
+                    }
+                })
+
+                const topItems = Object.entries(itemCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 5)
+                    .map(([name, quantity]) => ({ name: name.length > 20 ? name.slice(0, 20) + '...' : name, quantity }))
+
+                setTopItemsData(topItems)
+
             } catch (error) {
                 console.error('Erro ao carregar dados:', error)
             } finally {
@@ -160,7 +222,6 @@ export default function DashboardPage() {
         }
     }
 
-    // Função para destacar datas com pedidos (verde = entregas)
     const modifiers = {
         hasEvent: (day: Date) => {
             const dateStr = format(day, 'yyyy-MM-dd')
@@ -170,35 +231,37 @@ export default function DashboardPage() {
 
     const modifiersStyles = {
         hasEvent: {
-            backgroundColor: '#22c55e',  // Verde para entregas
+            backgroundColor: '#22c55e',
             color: 'white',
             fontWeight: 'bold' as const,
             borderRadius: '50%',
         }
     }
 
-    // Função para obter a contagem de pedidos de uma data
-    function getOrderCount(date: Date): number {
-        const dateStr = format(date, 'yyyy-MM-dd')
-        return pedidosPorData[dateStr] || 0
-    }
-
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground">
-                    Bem-vindo ao FestaLog! Aqui está o resumo do seu negócio.
-                </p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-muted-foreground">
+                        Visão geral do desempenho e atividades recentes.
+                    </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Button>
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        Agendar Evento
+                    </Button>
+                </div>
             </div>
 
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Entregas Hoje</CardTitle>
-                        <Truck className="h-4 w-4 text-muted-foreground" />
+                        <Truck className="h-4 w-4 text-emerald-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.entregasHoje}</div>
@@ -208,10 +271,10 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Pedidos Pendentes</CardTitle>
-                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <Package className="h-4 w-4 text-orange-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.pedidosPendentes}</div>
@@ -221,10 +284,10 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <Users className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalClientes}</div>
@@ -234,10 +297,10 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Faturamento do Mês</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-sm font-medium">Faturamento (Mês)</CardTitle>
+                        <DollarSign className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
@@ -246,6 +309,33 @@ export default function DashboardPage() {
                         <p className="text-xs text-muted-foreground">
                             Pedidos finalizados
                         </p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Visão Geral de Receita</CardTitle>
+                            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                    </CardHeader>
+                    <CardContent className="pl-2">
+                        <Overview data={revenueData} />
+                    </CardContent>
+                </Card>
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Itens Mais Alugados</CardTitle>
+                            <PieChart className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <CardDescription>Baseado nos últimos 100 pedidos</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <TopItems data={topItemsData} />
                     </CardContent>
                 </Card>
             </div>

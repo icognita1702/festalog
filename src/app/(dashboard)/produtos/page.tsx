@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress' // Assumindo que existe ou usarei HTML nativo se não
 import {
     Dialog,
     DialogContent,
@@ -23,14 +24,20 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Package, Loader2, Tags, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+    Plus,
+    Pencil,
+    Trash2,
+    Package,
+    Loader2,
+    Tags,
+    AlertTriangle,
+    CheckCircle2,
+    XCircle,
+    Search,
+    LayoutGrid,
+    List,
+    ImageIcon
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Pagination } from '@/components/ui/pagination'
 import type { DisponibilidadeProduto } from '@/lib/database.types'
@@ -81,10 +88,11 @@ export default function ProdutosPage() {
     const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
     const [editingProduto, setEditingProduto] = useState<Produto | null>(null)
     const [currentPage, setCurrentPage] = useState(1)
-    const [pageSize, setPageSize] = useState(10)
+    const [pageSize, setPageSize] = useState(12) // Grid fit better with 12
     const [newCategoryName, setNewCategoryName] = useState('')
     const [newCategoryColor, setNewCategoryColor] = useState('bg-gray-500')
     const [savingCategory, setSavingCategory] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
 
     // Stock availability state
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -151,8 +159,13 @@ export default function ProdutosPage() {
         }
     }, [selectedDate])
 
-    // Paginate
-    const paginatedProdutos = produtos.slice(
+    // Filter and Paginate
+    const filteredProdutos = produtos.filter(p =>
+        p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.categoria.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    const paginatedProdutos = filteredProdutos.slice(
         (currentPage - 1) * pageSize,
         currentPage * pageSize
     )
@@ -171,11 +184,11 @@ export default function ProdutosPage() {
         const percentual = total > 0 ? (disponivel / total) * 100 : 0
 
         if (disponivel <= 0) {
-            return { label: 'Esgotado', color: 'bg-red-500', icon: XCircle }
+            return { label: 'Esgotado', color: 'text-red-500', barColor: 'bg-red-500', icon: XCircle }
         } else if (percentual <= 20) {
-            return { label: 'Baixo', color: 'bg-yellow-500', icon: AlertTriangle }
+            return { label: 'Baixo', color: 'text-amber-500', barColor: 'bg-amber-500', icon: AlertTriangle }
         }
-        return { label: 'OK', color: 'bg-green-500', icon: CheckCircle2 }
+        return { label: 'Disponível', color: 'text-emerald-500', barColor: 'bg-emerald-500', icon: CheckCircle2 }
     }
 
     function openDialog(produto?: Produto) {
@@ -281,7 +294,6 @@ export default function ProdutosPage() {
     }
 
     async function handleDeleteCategory(id: string, nome: string) {
-        // Check if category is in use
         const { data: produtosUsando } = await (supabase as any)
             .from('produtos')
             .select('id')
@@ -309,17 +321,16 @@ export default function ProdutosPage() {
     }
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Produtos</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Estoque</h1>
                     <p className="text-muted-foreground">
-                        Gerencie o estoque de materiais para locação
+                        Visão visual e controle de disponibilidade.
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    {/* Manage Categories Dialog */}
                     <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline">
@@ -330,12 +341,9 @@ export default function ProdutosPage() {
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Gerenciar Categorias</DialogTitle>
-                                <DialogDescription>
-                                    Adicione ou remova categorias de produtos
-                                </DialogDescription>
+                                <DialogDescription>Adicione ou remova categorias.</DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
-                                {/* Add new category */}
                                 <form onSubmit={handleAddCategory} className="flex gap-2">
                                     <Input
                                         placeholder="Nova categoria..."
@@ -350,7 +358,7 @@ export default function ProdutosPage() {
                                                 <span>Cor</span>
                                             </div>
                                         </SelectTrigger>
-                                        <SelectContent position="popper" sideOffset={5}>
+                                        <SelectContent>
                                             {defaultColors.map((color) => (
                                                 <SelectItem key={color} value={color}>
                                                     <div className="flex items-center gap-2">
@@ -365,37 +373,28 @@ export default function ProdutosPage() {
                                         {savingCategory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                                     </Button>
                                 </form>
-
-                                {/* List categories */}
                                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                                    {categorias.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground text-center py-4">
-                                            Nenhuma categoria cadastrada
-                                        </p>
-                                    ) : (
-                                        categorias.map((cat) => (
-                                            <div key={cat.id} className="flex items-center justify-between p-2 rounded-lg border">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`h-3 w-3 rounded-full ${cat.cor}`} />
-                                                    <span>{cat.nome}</span>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-destructive hover:text-destructive"
-                                                    onClick={() => handleDeleteCategory(cat.id, cat.nome)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                    {categorias.map((cat) => (
+                                        <div key={cat.id} className="flex items-center justify-between p-2 rounded-lg border">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`h-3 w-3 rounded-full ${cat.cor}`} />
+                                                <span>{cat.nome}</span>
                                             </div>
-                                        ))
-                                    )}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                onClick={() => handleDeleteCategory(cat.id, cat.nome)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </DialogContent>
                     </Dialog>
 
-                    {/* Add Product Dialog */}
                     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger asChild>
                             <Button onClick={() => openDialog()}>
@@ -406,21 +405,15 @@ export default function ProdutosPage() {
                         <DialogContent>
                             <form onSubmit={handleSubmit}>
                                 <DialogHeader>
-                                    <DialogTitle>
-                                        {editingProduto ? 'Editar Produto' : 'Novo Produto'}
-                                    </DialogTitle>
-                                    <DialogDescription>
-                                        Preencha os dados do produto abaixo
-                                    </DialogDescription>
+                                    <DialogTitle>{editingProduto ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-4">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="nome">Nome do Produto</Label>
+                                        <Label htmlFor="nome">Nome</Label>
                                         <Input
                                             id="nome"
                                             value={formData.nome}
                                             onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                                            placeholder="Ex: Mesa Redonda 1.20m"
                                             required
                                         />
                                     </div>
@@ -428,63 +421,44 @@ export default function ProdutosPage() {
                                         <Label htmlFor="categoria">Categoria</Label>
                                         <Select
                                             value={formData.categoria}
-                                            onValueChange={(value) =>
-                                                setFormData({ ...formData, categoria: value })
-                                            }
+                                            onValueChange={(value) => setFormData({ ...formData, categoria: value })}
                                         >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione a categoria" />
-                                            </SelectTrigger>
+                                            <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                             <SelectContent>
                                                 {categorias.map((cat) => (
-                                                    <SelectItem key={cat.id} value={cat.nome}>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={`h-2 w-2 rounded-full ${cat.cor}`} />
-                                                            {cat.nome}
-                                                        </div>
-                                                    </SelectItem>
+                                                    <SelectItem key={cat.id} value={cat.nome}>{cat.nome}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="quantidade">Quantidade Total</Label>
+                                            <Label htmlFor="quantidade">Qtd Total</Label>
                                             <Input
                                                 id="quantidade"
                                                 type="number"
                                                 min="0"
                                                 value={formData.quantidade_total}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, quantidade_total: parseInt(e.target.value) || 0 })
-                                                }
+                                                onChange={(e) => setFormData({ ...formData, quantidade_total: parseInt(e.target.value) || 0 })}
                                                 required
                                             />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="preco">Preço Unitário (R$)</Label>
+                                            <Label htmlFor="preco">Preço (R$)</Label>
                                             <Input
                                                 id="preco"
                                                 type="number"
-                                                min="0"
                                                 step="0.01"
                                                 value={formData.preco_unitario}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, preco_unitario: parseFloat(e.target.value) || 0 })
-                                                }
+                                                onChange={(e) => setFormData({ ...formData, preco_unitario: parseFloat(e.target.value) || 0 })}
                                                 required
                                             />
                                         </div>
                                     </div>
                                 </div>
                                 <DialogFooter>
-                                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                                        Cancelar
-                                    </Button>
-                                    <Button type="submit" disabled={saving}>
-                                        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        {editingProduto ? 'Salvar' : 'Cadastrar'}
-                                    </Button>
+                                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                                    <Button type="submit" disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salvar</Button>
                                 </DialogFooter>
                             </form>
                         </DialogContent>
@@ -492,134 +466,116 @@ export default function ProdutosPage() {
                 </div>
             </div>
 
-            {/* Tabela */}
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div>
-                            <CardTitle>Estoque</CardTitle>
-                            <CardDescription>
-                                {produtos.length} produto{produtos.length !== 1 ? 's' : ''} cadastrado{produtos.length !== 1 ? 's' : ''}
-                            </CardDescription>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Label htmlFor="stock-date" className="text-sm whitespace-nowrap">
-                                Ver disponibilidade para:
-                            </Label>
-                            <Input
-                                id="stock-date"
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-[160px]"
-                            />
-                            {loadingDisp && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                        </div>
+            {/* Filters Bar */}
+            <Card className="bg-muted/30 border-none shadow-sm">
+                <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="relative w-full md:w-96">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar produtos..."
+                            className="pl-9 bg-background"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : produtos.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-center">
-                            <Package className="h-12 w-12 text-muted-foreground/50" />
-                            <p className="mt-2 text-sm text-muted-foreground">
-                                Nenhum produto cadastrado ainda
-                            </p>
-                            <Button className="mt-4" size="sm" onClick={() => openDialog()}>
-                                Cadastrar Primeiro Produto
-                            </Button>
-                        </div>
-                    ) : (
-                        <>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nome</TableHead>
-                                        <TableHead>Categoria</TableHead>
-                                        <TableHead className="text-center">Total</TableHead>
-                                        <TableHead className="text-center">Reservado</TableHead>
-                                        <TableHead className="text-center">Disponível</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                        <TableHead className="text-right">Preço Unit.</TableHead>
-                                        <TableHead className="text-right">Ações</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedProdutos.map((produto) => {
-                                        const disp = getDisponibilidadeProduto(produto.id)
-                                        const reservado = disp ? Number(disp.quantidade_reservada) : 0
-                                        const disponivel = disp ? Number(disp.quantidade_disponivel) : produto.quantidade_total
-                                        const status = getStockStatus(produto.quantidade_total, reservado)
-                                        const StatusIcon = status.icon
-
-                                        return (
-                                            <TableRow key={produto.id}>
-                                                <TableCell className="font-medium">{produto.nome}</TableCell>
-                                                <TableCell>
-                                                    <Badge className={getCategoriaColor(produto.categoria)}>
-                                                        {produto.categoria}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-center">{produto.quantidade_total}</TableCell>
-                                                <TableCell className="text-center">
-                                                    {reservado > 0 ? (
-                                                        <span className="font-medium text-orange-600">{reservado}</span>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">0</span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <span className={disponivel <= 0 ? 'text-red-600 font-bold' : disponivel <= produto.quantidade_total * 0.2 ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
-                                                        {disponivel}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <Badge className={`${status.color} gap-1`}>
-                                                        <StatusIcon className="h-3 w-3" />
-                                                        {status.label}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => openDialog(produto)}
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="text-destructive hover:text-destructive"
-                                                            onClick={() => handleDelete(produto.id)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
-                            <Pagination
-                                currentPage={currentPage}
-                                totalItems={produtos.length}
-                                pageSize={pageSize}
-                                onPageChange={setCurrentPage}
-                                onPageSizeChange={setPageSize}
-                            />
-                        </>
-                    )}
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <Label htmlFor="stock-date" className="whitespace-nowrap font-medium text-sm">
+                            Disponibilidade em:
+                        </Label>
+                        <Input
+                            id="stock-date"
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="w-[160px] bg-background"
+                        />
+                    </div>
                 </CardContent>
             </Card>
+
+            {/* Visual Grid */}
+            {loading ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+            ) : filteredProdutos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-xl bg-muted/20">
+                    <Package className="h-12 w-12 text-muted-foreground/50" />
+                    <p className="mt-2 text-lg font-medium text-muted-foreground">Nenhum produto encontrado</p>
+                    <Button variant="link" onClick={() => setSearchTerm('')} className="mt-2 text-primary">
+                        Limpar busca
+                    </Button>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {paginatedProdutos.map((produto) => {
+                        const disp = getDisponibilidadeProduto(produto.id)
+                        const reservado = disp ? Number(disp.quantidade_reservada) : 0
+                        const disponivel = disp ? Number(disp.quantidade_disponivel) : produto.quantidade_total
+                        const status = getStockStatus(produto.quantidade_total, reservado)
+                        const catColor = getCategoriaColor(produto.categoria)
+
+                        return (
+                            <Card key={produto.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-muted-foreground/10">
+                                {/* Visual Header / Placeholder Image */}
+                                <div className={`aspect-video w-full ${catColor} relative flex items-center justify-center bg-opacity-10 dark:bg-opacity-20`}>
+                                    {/* Gradiente subtil overlay */}
+                                    <div className={`absolute inset-0 bg-gradient-to-br from-white/10 to-black/5`}></div>
+                                    <ImageIcon className="h-10 w-10 text-white/50" />
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => openDialog(produto)}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => handleDelete(produto.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <Badge variant="secondary" className="absolute bottom-2 left-2 text-xs font-medium shadow-sm">
+                                        {produto.categoria}
+                                    </Badge>
+                                </div>
+
+                                <CardContent className="p-4 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-lg leading-tight line-clamp-2" title={produto.nome}>
+                                            {produto.nome}
+                                        </h3>
+                                        <span className="font-semibold text-primary whitespace-nowrap">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco_unitario)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between text-xs text-muted-foreground">
+                                            <span>Disponível: <strong>{disponivel}</strong></span>
+                                            <span>Total: {produto.quantidade_total}</span>
+                                        </div>
+                                        {/* Barra de Progresso Visual (Simulada com div por simplicidade e controle de cor) */}
+                                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${status.barColor} transition-all duration-500`}
+                                                style={{ width: `${(disponivel / produto.quantidade_total) * 100}%` }}
+                                            />
+                                        </div>
+                                        <div className={`flex items-center gap-1.5 text-xs font-medium ${status.color} pt-1`}>
+                                            <status.icon className="h-3.5 w-3.5" />
+                                            {status.label}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+            )}
+
+            <Pagination
+                currentPage={currentPage}
+                totalItems={filteredProdutos.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+            />
         </div>
     )
 }

@@ -10,6 +10,7 @@ import {
     SheetContent,
     SheetTrigger,
 } from '@/components/ui/sheet'
+import { NotificationBell } from '@/components/notification-bell'
 import {
     LayoutDashboard,
     Users,
@@ -21,6 +22,7 @@ import {
     PartyPopper,
     Menu,
     TrendingUp,
+    TrendingDown,
     Calculator
 } from 'lucide-react'
 
@@ -65,6 +67,11 @@ const menuItems = [
         href: '/financeiro',
         icon: TrendingUp
     },
+    {
+        title: 'Despesas',
+        href: '/despesas',
+        icon: TrendingDown
+    },
 ]
 
 function SidebarContent({ onLinkClick }: { onLinkClick?: () => void }) {
@@ -73,15 +80,15 @@ function SidebarContent({ onLinkClick }: { onLinkClick?: () => void }) {
     return (
         <div className="flex h-full flex-col">
             {/* Logo */}
-            <div className="flex h-16 items-center gap-3 border-b px-6">
-                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 shadow-md">
-                    <PartyPopper className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-                        FestaLog
-                    </span>
-                    <span className="text-[10px] text-muted-foreground -mt-1">Lú Festas</span>
+            <div className="flex h-24 items-center justify-center border-b p-4">
+                <div className="relative w-full h-full flex items-center justify-center">
+                    {/* Usando img tag simples para garantir carregamento local sem problemas de config do next/image inicialmente, 
+                         mas o ideal é next/image. Vou usar img por segurança no dev server local. */}
+                    <img
+                        src="/logo.jpg"
+                        alt="Lu Festas"
+                        className="max-h-full max-w-full object-contain"
+                    />
                 </div>
             </div>
 
@@ -137,23 +144,27 @@ export function Sidebar() {
             <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b bg-card lg:hidden">
                 <div className="flex h-full items-center justify-between px-4">
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 shadow-md">
-                            <PartyPopper className="h-5 w-5 text-white" />
+                        <div className="relative w-32 h-12 flex items-center">
+                            <img
+                                src="/logo.jpg"
+                                alt="Lu Festas"
+                                className="max-h-full max-w-full object-contain"
+                            />
                         </div>
-                        <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-                            FestaLog
-                        </span>
                     </div>
-                    <Sheet open={open} onOpenChange={setOpen}>
-                        <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <Menu className="h-6 w-6" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent side="left" className="w-64 p-0">
-                            <SidebarContent onLinkClick={() => setOpen(false)} />
-                        </SheetContent>
-                    </Sheet>
+                    <div className="flex items-center gap-2">
+                        <NotificationBell />
+                        <Sheet open={open} onOpenChange={setOpen}>
+                            <SheetTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <Menu className="h-6 w-6" />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="left" className="w-64 p-0">
+                                <SidebarContent onLinkClick={() => setOpen(false)} />
+                            </SheetContent>
+                        </Sheet>
+                    </div>
                 </div>
             </header>
         </>
