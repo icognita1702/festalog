@@ -3,6 +3,7 @@ declare module 'date-fns' {
     export function parseISO(dateString: string): Date;
     export function addDays(date: Date | number, amount: number): Date;
     export function subDays(date: Date | number, amount: number): Date;
+    export function subMonths(date: Date | number, amount: number): Date;
     export function isAfter(date: Date | number, dateToCompare: Date | number): boolean;
     export function isBefore(date: Date | number, dateToCompare: Date | number): boolean;
     export function startOfDay(date: Date | number): Date;
@@ -10,6 +11,7 @@ declare module 'date-fns' {
     export function startOfMonth(date: Date | number): Date;
     export function endOfMonth(date: Date | number): Date;
     export function eachDayOfInterval(interval: { start: Date | number; end: Date | number }): Date[];
+    export function eachMonthOfInterval(interval: { start: Date | number; end: Date | number }): Date[];
     export function isSameDay(dateLeft: Date | number, dateRight: Date | number): boolean;
     export function isSameMonth(dateLeft: Date | number, dateRight: Date | number): boolean;
     export function differenceInDays(dateLeft: Date | number, dateRight: Date | number): number;
@@ -18,4 +20,35 @@ declare module 'date-fns' {
 declare module 'date-fns/locale' {
     export const ptBR: object;
     export const enUS: object;
+}
+
+// Individual module imports
+declare module 'date-fns/format' {
+    import { format } from 'date-fns';
+    export { format };
+    export default format;
+}
+
+declare module 'date-fns/subMonths' {
+    import { subMonths } from 'date-fns';
+    export { subMonths };
+    export default subMonths;
+}
+
+declare module 'date-fns/startOfMonth' {
+    import { startOfMonth } from 'date-fns';
+    export { startOfMonth };
+    export default startOfMonth;
+}
+
+declare module 'date-fns/endOfMonth' {
+    import { endOfMonth } from 'date-fns';
+    export { endOfMonth };
+    export default endOfMonth;
+}
+
+declare module 'date-fns/eachMonthOfInterval' {
+    import { eachMonthOfInterval } from 'date-fns';
+    export { eachMonthOfInterval };
+    export default eachMonthOfInterval;
 }
