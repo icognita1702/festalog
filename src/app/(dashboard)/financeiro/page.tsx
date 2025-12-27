@@ -17,7 +17,8 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     ShoppingCart,
-    Percent
+    Percent,
+    Truck
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -125,9 +126,12 @@ interface PaymentMethodData {
 }
 
 interface FinancialSummary {
-    totalReceitas: number
-    totalDespesas: number
-    lucroLiquido: number
+    receitaLocacao: number      // Total dos pedidos SEM frete
+    freteRecebido: number       // Soma dos fretes cobrados
+    totalReceitas: number       // Total de pagamentos recebidos
+    totalDespesas: number       // Despesas cadastradas
+    custoCombustivel: number    // Frete estimado como custo
+    lucroLiquido: number        // Receita locação - despesas
 }
 
 export default function FinanceiroPage() {
@@ -151,8 +155,11 @@ export default function FinanceiroPage() {
     const [topProdutos, setTopProdutos] = useState<TopProduto[]>([])
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>([])
     const [financialSummary, setFinancialSummary] = useState<FinancialSummary>({
+        receitaLocacao: 0,
+        freteRecebido: 0,
         totalReceitas: 0,
         totalDespesas: 0,
+        custoCombustivel: 0,
         lucroLiquido: 0,
     })
     const [loading, setLoading] = useState(true)
@@ -325,10 +332,21 @@ export default function FinanceiroPage() {
             const totalDespesas = (despesas || []).reduce((acc: number, d: any) => acc + (d.valor || 0), 0)
             const totalReceitas = paymentMethodsData.reduce((acc, p) => acc + p.valor, 0)
 
+            // Calcular frete dos pedidos finalizados no período
+            const freteRecebido = finalizados.reduce((acc, p) => acc + ((p as any).frete || 0), 0)
+            const receitaLocacao = faturamentoTotal - freteRecebido
+
+            // Frete é considerado custo de combustível (100% vai para deslocamento)
+            const custoCombustivel = freteRecebido
+
             setFinancialSummary({
+                receitaLocacao,
+                freteRecebido,
                 totalReceitas,
                 totalDespesas,
-                lucroLiquido: totalReceitas - totalDespesas,
+                custoCombustivel,
+                // Lucro Líquido = Receita de Locação - Despesas (frete cobre o combustível)
+                lucroLiquido: receitaLocacao - totalDespesas,
             })
 
         } catch (error) {
@@ -540,18 +558,33 @@ export default function FinanceiroPage() {
                     </div>
 
                     {/* Financial Summary Row */}
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <Card className="border-green-200 dark:border-green-900">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Receitas (Pagamentos)</CardTitle>
+                                <CardTitle className="text-sm font-medium">Receita Locação</CardTitle>
                                 <ArrowUpRight className="h-4 w-4 text-green-600" />
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-green-600">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.totalReceitas)}
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.receitaLocacao)}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    {paymentMethods.reduce((acc, p) => acc + p.quantidade, 0)} pagamento(s) registrado(s)
+                                    Faturamento sem frete
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-orange-200 dark:border-orange-900">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Frete ≈ Combustível</CardTitle>
+                                <Truck className="h-4 w-4 text-orange-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-orange-500">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.freteRecebido)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Cobre custo de deslocamento
                                 </p>
                             </CardContent>
                         </Card>
@@ -566,7 +599,7 @@ export default function FinanceiroPage() {
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.totalDespesas)}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Custos operacionais no período
+                                    Custos operacionais
                                 </p>
                             </CardContent>
                         </Card>
@@ -584,7 +617,7 @@ export default function FinanceiroPage() {
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.lucroLiquido)}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Receitas - Despesas
+                                    Locação - Despesas
                                 </p>
                             </CardContent>
                         </Card>
