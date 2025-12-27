@@ -157,7 +157,7 @@ export default function DashboardPage() {
                         .reduce((acc, p) => acc + (p.total_pedido || 0), 0) || 0
 
                     return {
-                        name: format(month, 'MMM', { locale: ptBR }).toUpperCase(),
+                        name: format(month, 'MMM', { locale: ptBR as any }).toUpperCase(),
                         total
                     }
                 })
