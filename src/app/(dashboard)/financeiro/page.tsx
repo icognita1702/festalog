@@ -115,6 +115,21 @@ interface TopProduto {
     receita: number
 }
 
+interface PaymentMethodData {
+    metodo: string
+    label: string
+    valor: number
+    quantidade: number
+    color: string
+    [key: string]: string | number
+}
+
+interface FinancialSummary {
+    totalReceitas: number
+    totalDespesas: number
+    lucroLiquido: number
+}
+
 export default function FinanceiroPage() {
     // Date range state
     const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()))
@@ -134,6 +149,12 @@ export default function FinanceiroPage() {
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
     const [statusData, setStatusData] = useState<StatusData[]>([])
     const [topProdutos, setTopProdutos] = useState<TopProduto[]>([])
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>([])
+    const [financialSummary, setFinancialSummary] = useState<FinancialSummary>({
+        totalReceitas: 0,
+        totalDespesas: 0,
+        lucroLiquido: 0,
+    })
     const [loading, setLoading] = useState(true)
     const [exporting, setExporting] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -254,6 +275,61 @@ export default function FinanceiroPage() {
                 .sort((a, b) => b.quantidade - a.quantidade)
                 .slice(0, 5)
             setTopProdutos(top5)
+
+            // ============ PAGAMENTOS POR MÉTODO ============
+            const { data: pagamentos } = await (supabase as any)
+                .from('pagamentos')
+                .select('valor, metodo, data_pagamento')
+                .gte('data_pagamento', fromStr)
+                .lte('data_pagamento', toStr)
+
+            const metodoLabels: Record<string, string> = {
+                pix: 'PIX',
+                dinheiro: 'Dinheiro',
+                cartao: 'Cartão',
+                transferencia: 'Transferência',
+            }
+            const metodoColors: Record<string, string> = {
+                pix: '#22c55e',
+                dinheiro: '#f97316',
+                cartao: '#3b82f6',
+                transferencia: '#8b5cf6',
+            }
+
+            const metodosAgrupados: Record<string, { valor: number; quantidade: number }> = {}
+                ; (pagamentos || []).forEach((p: any) => {
+                    const m = p.metodo || 'dinheiro'
+                    if (!metodosAgrupados[m]) {
+                        metodosAgrupados[m] = { valor: 0, quantidade: 0 }
+                    }
+                    metodosAgrupados[m].valor += p.valor || 0
+                    metodosAgrupados[m].quantidade += 1
+                })
+
+            const paymentMethodsData: PaymentMethodData[] = Object.entries(metodosAgrupados).map(([metodo, data]) => ({
+                metodo,
+                label: metodoLabels[metodo] || metodo,
+                valor: data.valor,
+                quantidade: data.quantidade,
+                color: metodoColors[metodo] || '#888',
+            }))
+            setPaymentMethods(paymentMethodsData)
+
+            // ============ DESPESAS DO PERÍODO ============
+            const { data: despesas } = await (supabase as any)
+                .from('despesas')
+                .select('valor')
+                .gte('data', fromStr)
+                .lte('data', toStr)
+
+            const totalDespesas = (despesas || []).reduce((acc: number, d: any) => acc + (d.valor || 0), 0)
+            const totalReceitas = paymentMethodsData.reduce((acc, p) => acc + p.valor, 0)
+
+            setFinancialSummary({
+                totalReceitas,
+                totalDespesas,
+                lucroLiquido: totalReceitas - totalDespesas,
+            })
 
         } catch (error) {
             console.error('Erro ao carregar dados:', error)
@@ -459,6 +535,138 @@ export default function FinanceiroPage() {
                                 <p className="text-xs text-muted-foreground">
                                     Orçamentos convertidos
                                 </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Financial Summary Row */}
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <Card className="border-green-200 dark:border-green-900">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Receitas (Pagamentos)</CardTitle>
+                                <ArrowUpRight className="h-4 w-4 text-green-600" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-green-600">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.totalReceitas)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {paymentMethods.reduce((acc, p) => acc + p.quantidade, 0)} pagamento(s) registrado(s)
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-red-200 dark:border-red-900">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+                                <TrendingDown className="h-4 w-4 text-destructive" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-destructive">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.totalDespesas)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Custos operacionais no período
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className={cn(
+                            "border-2",
+                            financialSummary.lucroLiquido >= 0 ? "border-green-500" : "border-red-500"
+                        )}>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Lucro Líquido</CardTitle>
+                                <DollarSign className={cn("h-4 w-4", financialSummary.lucroLiquido >= 0 ? "text-green-600" : "text-destructive")} />
+                            </CardHeader>
+                            <CardContent>
+                                <div className={cn("text-2xl font-bold", financialSummary.lucroLiquido >= 0 ? "text-green-600" : "text-destructive")}>
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(financialSummary.lucroLiquido)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Receitas - Despesas
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Payment Methods Chart */}
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <DollarSign className="h-5 w-5 text-primary" />
+                                    Métodos de Pagamento
+                                </CardTitle>
+                                <CardDescription>Distribuição por forma de recebimento</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {paymentMethods.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                                        <DollarSign className="h-12 w-12 text-muted-foreground/50" />
+                                        <p className="mt-2 text-muted-foreground">Nenhum pagamento registrado no período</p>
+                                    </div>
+                                ) : (
+                                    <div className="h-[250px] w-full">
+                                        {mounted && <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={paymentMethods}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={50}
+                                                    outerRadius={80}
+                                                    paddingAngle={3}
+                                                    dataKey="valor"
+                                                    nameKey="label"
+                                                >
+                                                    {paymentMethods.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    formatter={(value: number) => [
+                                                        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
+                                                        'Valor'
+                                                    ]}
+                                                />
+                                                <Legend />
+                                            </PieChart>
+                                        </ResponsiveContainer>}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Package className="h-5 w-5 text-primary" />
+                                    Detalhamento por Método
+                                </CardTitle>
+                                <CardDescription>Quantidade e valor por forma de pagamento</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {paymentMethods.length === 0 ? (
+                                    <p className="text-muted-foreground text-center py-8">Sem dados</p>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {paymentMethods.map((method) => (
+                                            <div key={method.metodo} className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: method.color }} />
+                                                    <div>
+                                                        <p className="font-medium">{method.label}</p>
+                                                        <p className="text-xs text-muted-foreground">{method.quantidade} pagamento(s)</p>
+                                                    </div>
+                                                </div>
+                                                <p className="font-bold">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(method.valor)}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

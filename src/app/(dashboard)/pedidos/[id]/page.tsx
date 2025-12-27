@@ -79,6 +79,16 @@ export default function PedidoDetalhesPage() {
     const router = useRouter()
     const pedidoId = params.id as string
 
+    // Verifica se deve abrir em modo edição (via query param)
+    const [searchParamsReady, setSearchParamsReady] = useState(false)
+    const [abrirEmEdicao, setAbrirEmEdicao] = useState(false)
+
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search)
+        setAbrirEmEdicao(urlParams.get('editar') === 'true')
+        setSearchParamsReady(true)
+    }, [])
+
     const [pedido, setPedido] = useState<PedidoCompleto | null>(null)
     const [loading, setLoading] = useState(true)
     const [gerando, setGerando] = useState(false)
@@ -118,6 +128,13 @@ export default function PedidoDetalhesPage() {
     useEffect(() => {
         loadPedido()
     }, [pedidoId])
+
+    // Ativar modo de edição automaticamente se parâmetro ?editar=true
+    useEffect(() => {
+        if (searchParamsReady && abrirEmEdicao && pedido && !modoEdicao) {
+            iniciarEdicao()
+        }
+    }, [searchParamsReady, abrirEmEdicao, pedido])
 
     // Carregar produtos para edição
     async function loadProdutos() {
@@ -1370,13 +1387,11 @@ export default function PedidoDetalhesPage() {
                     </Card>
 
                     {/* Pagamentos */}
-                    {!modoEdicao && (
-                        <PaymentSection
-                            pedidoId={pedidoId}
-                            totalPedido={pedido.total_pedido}
-                            onPaymentChange={loadPedido}
-                        />
-                    )}
+                    <PaymentSection
+                        pedidoId={pedidoId}
+                        totalPedido={pedido.total_pedido}
+                        onPaymentChange={loadPedido}
+                    />
 
                     {/* Ações */}
                     <Card className="border-destructive">

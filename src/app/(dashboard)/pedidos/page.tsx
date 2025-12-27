@@ -27,6 +27,7 @@ import {
     FileText,
     Loader2,
     Eye,
+    Pencil,
     Phone,
     Calendar,
     Filter
@@ -283,11 +284,18 @@ function PedidosContent() {
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button asChild variant="ghost" size="icon">
-                                                    <Link href={`/pedidos/${pedido.id}`}>
-                                                        <Eye className="h-4 w-4" />
-                                                    </Link>
-                                                </Button>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Button asChild variant="ghost" size="icon" title="Editar pedido">
+                                                        <Link href={`/pedidos/${pedido.id}?editar=true`}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
+                                                    <Button asChild variant="ghost" size="icon" title="Ver detalhes">
+                                                        <Link href={`/pedidos/${pedido.id}`}>
+                                                            <Eye className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}

@@ -24,7 +24,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2, Truck, Home, MapPin } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart, Sparkles, CheckCircle2, Truck, Home, MapPin, CreditCard } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { ConversationImportDialog } from '@/components/conversation-import-dialog'
@@ -65,6 +65,11 @@ export default function NovoPedidoPage() {
     // Estados para endereço do evento
     const [usarEnderecoResidencial, setUsarEnderecoResidencial] = useState(true)
     const [enderecoEvento, setEnderecoEvento] = useState('')
+
+    // Estados para pagamento inicial
+    const [registrarPagamento, setRegistrarPagamento] = useState(false)
+    const [metodoPagamento, setMetodoPagamento] = useState<'pix' | 'dinheiro' | 'cartao'>('pix')
+    const [valorPagamento, setValorPagamento] = useState<number>(0)
 
     async function loadData() {
         setLoading(true)
@@ -224,6 +229,29 @@ export default function NovoPedidoPage() {
                 .insert(itens)
 
             if (itensError) throw itensError
+
+            // Criar pagamento inicial se registrado
+            if (registrarPagamento && valorPagamento > 0) {
+                const { error: pagamentoError } = await (supabase as any)
+                    .from('pagamentos')
+                    .insert({
+                        pedido_id: pedido.id,
+                        valor: valorPagamento,
+                        metodo: metodoPagamento,
+                        data_pagamento: new Date().toISOString().split('T')[0],
+                    })
+
+                if (pagamentoError) {
+                    console.error('Erro ao registrar pagamento:', pagamentoError)
+                    // Não interrompe o fluxo, apenas loga o erro
+                }
+
+                // Atualizar valor_pago no pedido
+                await (supabase as any)
+                    .from('pedidos')
+                    .update({ valor_pago: valorPagamento })
+                    .eq('id', pedido.id)
+            }
 
             router.push('/pedidos')
         } catch (error) {
@@ -672,8 +700,8 @@ export default function NovoPedidoPage() {
                                                         type="button"
                                                         onClick={() => setTipoFrete(opcao.value as typeof tipoFrete)}
                                                         className={`px-3 py-2 text-xs rounded-md border transition-colors ${tipoFrete === opcao.value
-                                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                                : 'bg-background hover:bg-muted border-input'
+                                                            ? 'bg-primary text-primary-foreground border-primary'
+                                                            : 'bg-background hover:bg-muted border-input'
                                                             }`}
                                                     >
                                                         {opcao.label}
@@ -708,6 +736,75 @@ export default function NovoPedidoPage() {
                                             <span className="text-primary">
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}
                                             </span>
+                                        </div>
+
+                                        {/* Pagamento Inicial */}
+                                        <div className="border-t pt-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <CreditCard className="h-4 w-4" />
+                                                    <span className="text-sm font-medium">Registrar Pagamento</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRegistrarPagamento(!registrarPagamento)}
+                                                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${registrarPagamento ? 'bg-primary' : 'bg-gray-300'}`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${registrarPagamento ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                                </button>
+                                            </div>
+
+                                            {registrarPagamento && (
+                                                <div className="space-y-3 p-3 bg-muted rounded-lg">
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {[
+                                                            { value: 'pix', label: 'PIX', color: 'bg-green-600' },
+                                                            { value: 'dinheiro', label: 'Dinheiro', color: 'bg-orange-500' },
+                                                            { value: 'cartao', label: 'Cartão', color: 'bg-blue-500' },
+                                                        ].map((opcao) => (
+                                                            <button
+                                                                key={opcao.value}
+                                                                type="button"
+                                                                onClick={() => setMetodoPagamento(opcao.value as typeof metodoPagamento)}
+                                                                className={`px-2 py-2 text-xs rounded-md border transition-colors ${metodoPagamento === opcao.value
+                                                                    ? `${opcao.color} text-white border-transparent`
+                                                                    : 'bg-background hover:bg-accent border-input'
+                                                                    }`}
+                                                            >
+                                                                {opcao.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setValorPagamento(total * 0.5)}
+                                                            className="px-2 py-1.5 text-xs rounded-md border hover:bg-accent"
+                                                        >
+                                                            50% (R$ {(total * 0.5).toFixed(2)})
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setValorPagamento(total)}
+                                                            className="px-2 py-1.5 text-xs rounded-md border hover:bg-accent"
+                                                        >
+                                                            100% (R$ {total.toFixed(2)})
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm">R$</span>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max={total}
+                                                            step="0.01"
+                                                            value={valorPagamento}
+                                                            onChange={(e) => setValorPagamento(parseFloat(e.target.value) || 0)}
+                                                            className="h-8"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </>
