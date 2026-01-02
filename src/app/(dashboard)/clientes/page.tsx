@@ -23,12 +23,40 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Users, Loader2, Phone, MapPin, Sparkles } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Loader2, Phone, MapPin, Sparkles, Check, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Pagination } from '@/components/ui/pagination'
 import { ConversationImportDialog } from '@/components/conversation-import-dialog'
 import type { Cliente, ClienteInsert } from '@/lib/database.types'
 import type { ExtractionResult } from '@/lib/conversation-analyzer'
+
+function isValidCPF(cpf: string) {
+    if (!cpf) return true // Vazio é válido (opcional)
+    const cleanCPF = cpf.replace(/[^\d]+/g, '')
+    if (cleanCPF.length !== 11) return false
+
+    // Elimina CPFs invalidos conhecidos
+    if (/^(\d)\1+$/.test(cleanCPF)) return false
+
+    let soma = 0
+    let resto
+
+    for (let i = 1; i <= 9; i++)
+        soma = soma + parseInt(cleanCPF.substring(i - 1, i)) * (11 - i)
+    resto = (soma * 10) % 11
+
+    if ((resto == 10) || (resto == 11)) resto = 0
+    if (resto != parseInt(cleanCPF.substring(9, 10))) return false
+
+    soma = 0
+    for (let i = 1; i <= 10; i++)
+        soma = soma + parseInt(cleanCPF.substring(i - 1, i)) * (12 - i)
+    resto = (soma * 10) % 11
+
+    if ((resto == 10) || (resto == 11)) resto = 0
+    if (resto != parseInt(cleanCPF.substring(10, 11))) return false
+    return true
+}
 
 export default function ClientesPage() {
     const [clientes, setClientes] = useState<Cliente[]>([])
@@ -128,6 +156,12 @@ export default function ClientesPage() {
         setSaving(true)
 
         try {
+            if (formData.cpf && !isValidCPF(formData.cpf)) {
+                alert('CPF inválido. Por favor, corrija antes de salvar.')
+                setSaving(false)
+                return
+            }
+
             if (editingCliente) {
                 const { error } = await supabase
                     .from('clientes')
@@ -288,12 +322,24 @@ export default function ClientesPage() {
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="cpf">CPF</Label>
-                                            <Input
-                                                id="cpf"
-                                                value={formData.cpf || ''}
-                                                onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
-                                                placeholder="000.000.000-00"
-                                            />
+                                            <div className="relative">
+                                                <Input
+                                                    id="cpf"
+                                                    value={formData.cpf || ''}
+                                                    onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
+                                                    placeholder="000.000.000-00"
+                                                    className={formData.cpf && !isValidCPF(formData.cpf) ? "border-red-500 focus-visible:ring-red-500 pr-10" : "pr-10"}
+                                                />
+                                                {formData.cpf && (
+                                                    <div className="absolute right-3 top-2.5 pointer-events-none">
+                                                        {isValidCPF(formData.cpf) ? (
+                                                            <Check className="h-5 w-5 text-green-500" />
+                                                        ) : (
+                                                            <X className="h-5 w-5 text-red-500" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="grid gap-2">
