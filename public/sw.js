@@ -1,11 +1,12 @@
 // Service Worker for FestaLog PWA
 // Provides offline fallback and caching
 
-const CACHE_NAME = 'festalog-v2';
+const CACHE_NAME = 'festalog-v3';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache immediately
 const PRECACHE_ASSETS = [
+    OFFLINE_URL,
     '/icons/icon-192x192.png',
     '/icons/icon-512x512.png'
 ];

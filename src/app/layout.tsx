@@ -14,16 +14,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "FestaLog",
   title: "FestaLog - Gestão de Locação para Festas",
   description: "Sistema completo de gestão para locadoras de materiais para festas. Controle de estoque, contratos digitais e roteirização inteligente.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "FestaLog",
   },
   formatDetection: {
     telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-title": "FestaLog",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };
 
@@ -31,8 +45,7 @@ export const viewport: Viewport = {
   themeColor: "#ec4899",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -47,6 +60,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <ThemeProvider
           attribute="class"

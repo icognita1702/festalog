@@ -15,14 +15,6 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
-import {
     Plus,
     FileText,
     Loader2,
@@ -30,12 +22,12 @@ import {
     Pencil,
     Phone,
     Calendar,
-    Filter
+    Filter,
+    ChevronDown,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
-import { Pagination } from '@/components/ui/pagination'
 import type { PedidoComCliente, StatusPedido } from '@/lib/database.types'
 
 const statusColors: Record<StatusPedido, string> = {
@@ -77,8 +69,7 @@ function PedidosContent() {
     const [searchTerm, setSearchTerm] = useState('')
     const [statusFilter, setStatusFilter] = useState<StatusPedido | 'todos'>('todos')
     const [dataFilter, setDataFilter] = useState(dataParam || '')
-    const [currentPage, setCurrentPage] = useState(1)
-    const [pageSize, setPageSize] = useState(10)
+    const [visibleCount, setVisibleCount] = useState(8)
 
     async function loadPedidos() {
         setLoading(true)
@@ -86,7 +77,8 @@ function PedidosContent() {
         let query = supabase
             .from('pedidos')
             .select('*, clientes(*)')
-            .order('data_evento', { ascending: true })
+            .order('created_at', { ascending: false })
+            .order('data_evento', { ascending: false })
 
         if (statusFilter !== 'todos') {
             query = query.eq('status', statusFilter)
@@ -110,19 +102,15 @@ function PedidosContent() {
         loadPedidos()
     }, [statusFilter, dataFilter])
 
-    const filteredPedidos = pedidos.filter(pedido =>
+    const filteredPedidos = pedidos.filter((pedido) =>
         pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    // Paginate
-    const paginatedPedidos = filteredPedidos.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize
-    )
+    const visiblePedidos = filteredPedidos.slice(0, visibleCount)
+    const hasMorePedidos = visibleCount < filteredPedidos.length
 
-    // Reset page when filters change
     useEffect(() => {
-        setCurrentPage(1)
+        setVisibleCount(8)
     }, [searchTerm, statusFilter, dataFilter])
 
     async function updateStatus(pedidoId: string, newStatus: StatusPedido) {
@@ -146,12 +134,11 @@ function PedidosContent() {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Pedidos</h1>
                     <p className="text-muted-foreground">
-                        Gerencie os pedidos de locação
+                        Gerencie os pedidos de locação, com os mais recentes primeiro
                     </p>
                 </div>
                 <Button asChild>
@@ -162,18 +149,16 @@ function PedidosContent() {
                 </Button>
             </div>
 
-            {/* Filtros */}
-            <div className="flex flex-wrap gap-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto_auto]">
                 <Input
                     placeholder="Buscar por cliente..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-xs"
+                    onChange={(event) => setSearchTerm(event.target.value)}
                 />
                 <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusPedido | 'todos')}>
-                        <SelectTrigger className="w-[180px]">
+                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusPedido | 'todos')}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
                             <SelectValue placeholder="Filtrar por status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -191,8 +176,8 @@ function PedidosContent() {
                     <Input
                         type="date"
                         value={dataFilter}
-                        onChange={(e) => setDataFilter(e.target.value)}
-                        className="w-[180px]"
+                        onChange={(event) => setDataFilter(event.target.value)}
+                        className="w-full sm:w-[180px]"
                     />
                     {dataFilter && (
                         <Button variant="ghost" size="sm" onClick={() => setDataFilter('')}>
@@ -202,14 +187,20 @@ function PedidosContent() {
                 </div>
             </div>
 
-            {/* Tabela */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Lista de Pedidos</CardTitle>
-                    <CardDescription>
-                        {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? 's' : ''} encontrado{filteredPedidos.length !== 1 ? 's' : ''}
-                        {dataFilter && ` para ${format(new Date(dataFilter + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}`}
-                    </CardDescription>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <CardTitle>Pedidos recentes</CardTitle>
+                            <CardDescription>
+                                {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? 's' : ''} encontrado{filteredPedidos.length !== 1 ? 's' : ''}
+                                {dataFilter && ` para ${format(new Date(dataFilter + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}`}
+                            </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="w-fit">
+                            Novos primeiro
+                        </Badge>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -227,88 +218,96 @@ function PedidosContent() {
                             </Button>
                         </div>
                     ) : (
-                        <>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Cliente</TableHead>
-                                        <TableHead>Data Evento</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead className="text-right">Ações</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedPedidos.map((pedido) => (
-                                        <TableRow key={pedido.id}>
-                                            <TableCell>
-                                                <div>
-                                                    <p className="font-medium">{pedido.clientes?.nome}</p>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-auto p-0 text-xs text-green-600 hover:text-green-700"
+                        <div className="space-y-4">
+                            <div className="grid gap-3 xl:grid-cols-2">
+                                {visiblePedidos.map((pedido) => (
+                                    <div
+                                        key={pedido.id}
+                                        className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                                    >
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="min-w-0 space-y-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="truncate text-base font-semibold">
+                                                        {pedido.clientes?.nome || 'Cliente'}
+                                                    </p>
+                                                    <Badge className={statusColors[pedido.status]}>
+                                                        {statusLabels[pedido.status]}
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <Calendar className="h-3.5 w-3.5" />
+                                                        {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex items-center gap-1 text-green-600 transition-colors hover:text-green-700"
                                                         onClick={() => openWhatsApp(pedido.clientes?.whatsapp || '', pedido.clientes?.nome || '')}
                                                     >
-                                                        <Phone className="mr-1 h-3 w-3" />
-                                                        {pedido.clientes?.whatsapp}
-                                                    </Button>
+                                                        <Phone className="h-3.5 w-3.5" />
+                                                        {pedido.clientes?.whatsapp || 'Sem telefone'}
+                                                    </button>
                                                 </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {format(new Date(pedido.data_evento + 'T12:00:00'), "dd/MM/yyyy")}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Select
-                                                    value={pedido.status}
-                                                    onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
-                                                >
-                                                    <SelectTrigger className="w-[160px]">
-                                                        <Badge className={statusColors[pedido.status]}>
-                                                            {statusLabels[pedido.status]}
-                                                        </Badge>
-                                                    </SelectTrigger>
-                                                    <SelectContent position="popper" sideOffset={5}>
-                                                        {allStatus.map((status) => (
-                                                            <SelectItem key={status} value={status}>
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className={`h-2 w-2 rounded-full ${statusColors[status]}`} />
-                                                                    {statusLabels[status]}
-                                                                </div>
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium">
-                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button asChild variant="ghost" size="icon" title="Editar pedido">
-                                                        <Link href={`/pedidos/${pedido.id}?editar=true`}>
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                    <Button asChild variant="ghost" size="icon" title="Ver detalhes">
-                                                        <Link href={`/pedidos/${pedido.id}`}>
-                                                            <Eye className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                            <Pagination
-                                currentPage={currentPage}
-                                totalItems={filteredPedidos.length}
-                                pageSize={pageSize}
-                                onPageChange={setCurrentPage}
-                                onPageSizeChange={setPageSize}
-                            />
-                        </>
+                                            </div>
+                                            <div className="text-left sm:text-right">
+                                                <p className="text-lg font-bold">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <Select
+                                                value={pedido.status}
+                                                onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
+                                            >
+                                                <SelectTrigger className="w-full sm:w-[180px]">
+                                                    <SelectValue placeholder="Alterar status" />
+                                                </SelectTrigger>
+                                                <SelectContent position="popper" sideOffset={5}>
+                                                    {allStatus.map((status) => (
+                                                        <SelectItem key={status} value={status}>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`h-2 w-2 rounded-full ${statusColors[status]}`} />
+                                                                {statusLabels[status]}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+
+                                            <div className="grid grid-cols-2 gap-2 sm:flex">
+                                                <Button asChild variant="outline" size="sm">
+                                                    <Link href={`/pedidos/${pedido.id}?editar=true`}>
+                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                        Editar
+                                                    </Link>
+                                                </Button>
+                                                <Button asChild size="sm">
+                                                    <Link href={`/pedidos/${pedido.id}`}>
+                                                        <Eye className="mr-2 h-4 w-4" />
+                                                        Ver
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {hasMorePedidos && (
+                                <div className="flex justify-center pt-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setVisibleCount((count) => count + 8)}
+                                    >
+                                        Ver mais pedidos
+                                        <ChevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </CardContent>
             </Card>

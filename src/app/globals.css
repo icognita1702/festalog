@@ -136,6 +136,22 @@
 
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+}
+
+html {
+  background: var(--background);
+}
+
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 }
 

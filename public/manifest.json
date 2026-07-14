@@ -1,12 +1,20 @@
 {
+    "id": "/dashboard",
     "name": "FestaLog - Lú Festas",
     "short_name": "FestaLog",
     "description": "Sistema de gestão para locação de materiais de festas",
     "start_url": "/dashboard",
+    "scope": "/",
     "display": "standalone",
-    "background_color": "#0a0a0a",
+    "display_override": [
+        "standalone",
+        "minimal-ui",
+        "browser"
+    ],
+    "background_color": "#ffffff",
     "theme_color": "#ec4899",
     "orientation": "portrait-primary",
+    "prefer_related_applications": false,
     "icons": [
         {
             "src": "/icons/icon-192x192.png",
