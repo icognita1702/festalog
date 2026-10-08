@@ -328,7 +328,7 @@ export default function OrcamentoPage() {
                             <CardDescription>Selecione um cliente existente ou cadastre um novo</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row">
                                 <Button
                                     variant={!modoNovoCliente ? 'default' : 'outline'}
                                     size="sm"
@@ -417,9 +417,9 @@ export default function OrcamentoPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex gap-4">
+                            <div className="flex flex-col gap-3 sm:flex-row">
                                 <Select value={produtoSelecionado} onValueChange={setProdutoSelecionado}>
-                                    <SelectTrigger className="flex-1">
+                                    <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Selecione um produto" />
                                     </SelectTrigger>
                                     <SelectContent>

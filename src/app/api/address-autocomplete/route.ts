@@ -1,54 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+type PhotonFeature = {
+  properties?: {
+    country?: string
+    street?: string
+    housenumber?: string
+    name?: string
+    city?: string
+    state?: string
+  }
+}
+
 export async function GET(request: NextRequest) {
-    const searchParams = request.nextUrl.searchParams
-    const query = searchParams.get('q')
+  const query = request.nextUrl.searchParams.get('q')
 
-    if (!query || query.length < 3) {
-        return NextResponse.json({ suggestions: [] })
-    }
+  if (!query || query.length < 3) {
+    return NextResponse.json({ suggestions: [] })
+  }
 
-    try {
-        // Photon API - focado em Belo Horizonte
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=pt&lat=-19.92&lon=-43.94`
+  try {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=pt`
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'FestaLog/1.0',
+      },
+    })
 
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'FestaLog/1.0'
-            }
+    const data = (await response.json()) as { features?: PhotonFeature[] }
+    const suggestions =
+      data.features
+        ?.filter((feature) => {
+          const country = feature.properties?.country
+          return !country || country === 'Brazil' || country === 'Brasil'
         })
+        .map((feature) => {
+          const props = feature.properties
+          const parts: string[] = []
 
-        const data = await response.json()
+          if (props?.street) {
+            parts.push(props.housenumber ? `${props.street}, ${props.housenumber}` : props.street)
+          } else if (props?.name) {
+            parts.push(props.name)
+          }
 
-        if (data.features && data.features.length > 0) {
-            const suggestions = data.features
-                .filter((f: any) => {
-                    const country = f.properties?.country
-                    return country === 'Brazil' || country === 'Brasil'
-                })
-                .map((f: any) => {
-                    const props = f.properties
-                    const parts: string[] = []
+          if (props?.city) {
+            parts.push(props.city)
+          }
 
-                    if (props.street) {
-                        parts.push(props.housenumber ? `${props.street}, ${props.housenumber}` : props.street)
-                    } else if (props.name) {
-                        parts.push(props.name)
-                    }
+          if (props?.state) {
+            parts.push(props.state)
+          }
 
-                    if (props.city) parts.push(props.city)
-                    if (props.state) parts.push(props.state)
+          return parts.join(' - ')
+        })
+        .filter((address) => address.length > 0) ?? []
 
-                    return parts.join(' - ')
-                })
-                .filter((addr: string) => addr.length > 0)
-
-            return NextResponse.json({ suggestions })
-        }
-
-        return NextResponse.json({ suggestions: [] })
-    } catch (error) {
-        console.error('Erro ao buscar endereços:', error)
-        return NextResponse.json({ suggestions: [] })
-    }
+    return NextResponse.json({ suggestions })
+  } catch (error) {
+    console.error('Erro ao buscar enderecos:', error)
+    return NextResponse.json({ suggestions: [] })
+  }
 }

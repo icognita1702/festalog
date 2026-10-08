@@ -25,7 +25,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import type { PedidoCompleto, ItemPedido, Produto } from '@/lib/database.types'
 
-type ItemPedidoComProduto = ItemPedido & { produtos: Produto }
+type ItemPedidoComProduto = ItemPedido & { produtos: Produto | null }
 
 export default function ContratoAssinaturaPage() {
     const params = useParams()
@@ -384,3 +384,4 @@ export default function ContratoAssinaturaPage() {
         </div>
     )
 }
+

@@ -181,7 +181,7 @@ Cliente: Preciso de 10 mesas para dia 20/01, meu nome é Maria
                             {/* Resumo */}
                             {result.resumo && (
                                 <p className="text-sm text-muted-foreground italic">
-                                    "{result.resumo}"
+                                    &ldquo;{result.resumo}&rdquo;
                                 </p>
                             )}
 

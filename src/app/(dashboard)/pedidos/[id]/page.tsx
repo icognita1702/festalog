@@ -32,6 +32,8 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { supabase } from '@/lib/supabase'
 import type { PedidoCompleto, StatusPedido, ItemPedido, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { PaymentSection } from '@/components/payment-section'
+import { QuickPaymentModal } from '@/components/quick-payment-modal'
+import { ContractAttachmentCard } from '@/components/contract-attachment-card'
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -63,7 +65,7 @@ const allStatus: StatusPedido[] = [
     'finalizado',
 ]
 
-type ItemPedidoComProduto = ItemPedido & { produtos: Produto }
+type ItemPedidoComProduto = ItemPedido & { produtos: Produto | null }
 
 interface ItemCarrinhoEdit {
     id?: string // ID do item existente, undefined para novos
@@ -92,6 +94,10 @@ export default function PedidoDetalhesPage() {
     const [pedido, setPedido] = useState<PedidoCompleto | null>(null)
     const [loading, setLoading] = useState(true)
     const [gerando, setGerando] = useState(false)
+    const [quickPaymentOpen, setQuickPaymentOpen] = useState(false)
+    const [sugestaoValor, setSugestaoValor] = useState<number | undefined>(undefined)
+    const [sugestaoObs, setSugestaoObs] = useState<string | undefined>(undefined)
+    const [attachedContractUrl, setAttachedContractUrl] = useState<string | null>(null)
 
     // Estados de edição
     const [modoEdicao, setModoEdicao] = useState(false)
@@ -180,14 +186,16 @@ export default function PedidoDetalhesPage() {
         setEnderecoEventoEdit((pedido as any).endereco_evento || '')
 
         // Converte itens do pedido para carrinho editável
-        const itensEdit: ItemCarrinhoEdit[] = (pedido.itens_pedido || []).map((item: ItemPedidoComProduto) => ({
-            id: item.id,
-            produto: item.produtos,
-            quantidade: item.quantidade,
-            preco_unitario: item.preco_unitario,
-            disponivel: item.quantidade + getDisponivel(item.produtos.id), // Quantidade atual + disponível
-            isNew: false
-        }))
+        const itensEdit: ItemCarrinhoEdit[] = (pedido.itens_pedido || [])
+            .filter((item: ItemPedidoComProduto): item is ItemPedidoComProduto & { produtos: Produto } => Boolean(item.produtos))
+            .map((item) => ({
+                id: item.id,
+                produto: item.produtos,
+                quantidade: item.quantidade,
+                preco_unitario: item.preco_unitario,
+                disponivel: item.quantidade + getDisponivel(item.produtos.id),
+                isNew: false
+            }))
         setCarrinhoEdit(itensEdit)
 
         setModoEdicao(true)
@@ -367,6 +375,26 @@ export default function PedidoDetalhesPage() {
             console.error('Erro ao atualizar status:', error)
         } else {
             loadPedido()
+
+            // Auto-trigger quick payment modal if setting to pago_50 or finalizado and has pending balance
+            if (pedido) {
+                const total = Number(pedido.total_pedido || 0)
+                const pago = Number((pedido as any).valor_pago || 0)
+                const saldoDevedor = Math.max(0, total - pago)
+                if (saldoDevedor > 0.01) {
+                    if (newStatus === 'pago_50') {
+                        const metade = Number((total * 0.5).toFixed(2))
+                        const sugestao = pago < metade ? Number((metade - pago).toFixed(2)) : metade
+                        setSugestaoValor(sugestao)
+                        setSugestaoObs('Sinal 50%')
+                        setQuickPaymentOpen(true)
+                    } else if (newStatus === 'finalizado') {
+                        setSugestaoValor(saldoDevedor)
+                        setSugestaoObs('Quitação final')
+                        setQuickPaymentOpen(true)
+                    }
+                }
+            }
 
             // Notificação de pós-venda quando finalizado
             if (newStatus === 'finalizado' && pedido?.clientes) {
@@ -1026,6 +1054,17 @@ export default function PedidoDetalhesPage() {
                                 )}
                                 Gerar PDF
                             </Button>
+                            {attachedContractUrl && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => window.open(attachedContractUrl, '_blank')}
+                                    className="border-blue-500/40 text-blue-700 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-500/30 dark:bg-blue-950/40 dark:text-blue-300"
+                                    title="Visualizar contrato em PDF anexado"
+                                >
+                                    <FileText className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    Ver Contrato Anexado
+                                </Button>
+                            )}
                         </>
                     )}
                 </div>
@@ -1041,7 +1080,7 @@ export default function PedidoDetalhesPage() {
                         </CardHeader>
                         <CardContent>
                             <Select value={pedido.status} onValueChange={(v) => updateStatus(v as StatusPedido)}>
-                                <SelectTrigger className="w-[250px]">
+                                <SelectTrigger className="w-full sm:w-[250px]">
                                     <div className="flex items-center gap-2">
                                         <div className={`h-3 w-3 rounded-full ${statusColors[pedido.status]}`} />
                                         {statusLabels[pedido.status]}
@@ -1074,9 +1113,9 @@ export default function PedidoDetalhesPage() {
                                 /* Modo Edição */
                                 <>
                                     {/* Adicionar novo produto */}
-                                    <div className="flex gap-4 mb-6">
+                                    <div className="mb-6 flex flex-col gap-3 sm:flex-row">
                                         <Select value={produtoSelecionado} onValueChange={setProdutoSelecionado}>
-                                            <SelectTrigger className="flex-1">
+                                            <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Adicionar produto..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1386,6 +1425,12 @@ export default function PedidoDetalhesPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Contrato Anexado */}
+                    <ContractAttachmentCard
+                        pedidoId={pedidoId}
+                        onContractChange={(_, url) => setAttachedContractUrl(url || null)}
+                    />
+
                     {/* Pagamentos */}
                     <PaymentSection
                         pedidoId={pedidoId}
@@ -1411,6 +1456,27 @@ export default function PedidoDetalhesPage() {
                     </Card>
                 </div>
             </div>
+
+            {/* Quick Payment POS Modal */}
+            <QuickPaymentModal
+                open={quickPaymentOpen}
+                onOpenChange={setQuickPaymentOpen}
+                pedido={pedido ? {
+                    id: pedido.id,
+                    total_pedido: pedido.total_pedido,
+                    status: pedido.status,
+                    clientes: pedido.clientes,
+                    data_evento: pedido.data_evento,
+                    valor_pago: (pedido as any).valor_pago,
+                } : null}
+                valorPagoAtual={Number((pedido as any)?.valor_pago || 0)}
+                valorSugeridoInicial={sugestaoValor}
+                observacaoInicial={sugestaoObs}
+                onSuccess={() => {
+                    loadPedido()
+                }}
+            />
         </div>
     )
 }
+

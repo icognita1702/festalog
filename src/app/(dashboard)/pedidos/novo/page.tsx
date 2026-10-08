@@ -77,7 +77,7 @@ export default function NovoPedidoPage() {
         const [clientesRes, produtosRes, configRes] = await Promise.all([
             supabase.from('clientes').select('*').order('nome'),
             supabase.from('produtos').select('*').order('nome'),
-            (supabase as any).from('configuracoes').select('endereco, preco_km, frete_minimo').single()
+            supabase.from('configuracoes').select('endereco, preco_km, frete_minimo, cidade, estado').single()
         ])
 
         if (clientesRes.data) setClientes(clientesRes.data)
@@ -88,7 +88,9 @@ export default function NovoPedidoPage() {
             setFreightConfig({
                 storeAddress: configRes.data.endereco || getDefaultFreightConfig().storeAddress,
                 pricePerKm: configRes.data.preco_km ?? getDefaultFreightConfig().pricePerKm,
-                minimumFreight: configRes.data.frete_minimo ?? getDefaultFreightConfig().minimumFreight
+                minimumFreight: configRes.data.frete_minimo ?? getDefaultFreightConfig().minimumFreight,
+                city: configRes.data.cidade ?? getDefaultFreightConfig().city,
+                state: configRes.data.estado ?? getDefaultFreightConfig().state,
             })
         }
 
@@ -296,7 +298,7 @@ export default function NovoPedidoPage() {
             const { data: existingClient } = await supabase
                 .from('clientes')
                 .select('id')
-                .eq('telefone', result.cliente.telefone)
+                .eq('whatsapp', result.cliente.telefone)
                 .single()
 
             if (existingClient) {
@@ -332,11 +334,11 @@ export default function NovoPedidoPage() {
         try {
             const clientData = {
                 nome: importedData.cliente.nome!,
-                telefone: importedData.cliente.telefone || undefined,
-                endereco: importedData.cliente.endereco || undefined,
+                whatsapp: importedData.cliente.telefone || '',
+                endereco_completo: importedData.cliente.endereco || '',
             }
 
-            const { data: newClient, error } = await (supabase as any)
+            const { data: newClient, error } = await supabase
                 .from('clientes')
                 .insert(clientData)
                 .select()
@@ -554,9 +556,9 @@ export default function NovoPedidoPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="flex gap-4">
+                                <div className="flex flex-col gap-3 sm:flex-row">
                                     <Select value={produtoSelecionado} onValueChange={setProdutoSelecionado}>
-                                        <SelectTrigger className="flex-1">
+                                        <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Selecione um produto" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -686,7 +688,7 @@ export default function NovoPedidoPage() {
                                                 <Truck className="h-4 w-4" />
                                                 <span className="font-medium">Frete</span>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2">
+                                            <div className="grid gap-2 sm:grid-cols-3">
                                                 {[
                                                     { value: 'isento', label: 'Isento' },
                                                     { value: '15', label: 'R$ 15' },
@@ -756,7 +758,7 @@ export default function NovoPedidoPage() {
 
                                             {registrarPagamento && (
                                                 <div className="space-y-3 p-3 bg-muted rounded-lg">
-                                                    <div className="grid grid-cols-3 gap-2">
+                                                    <div className="grid gap-2 sm:grid-cols-3">
                                                         {[
                                                             { value: 'pix', label: 'PIX', color: 'bg-green-600' },
                                                             { value: 'dinheiro', label: 'Dinheiro', color: 'bg-orange-500' },
@@ -775,7 +777,7 @@ export default function NovoPedidoPage() {
                                                             </button>
                                                         ))}
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-2">
+                                                    <div className="grid gap-2 sm:grid-cols-2">
                                                         <button
                                                             type="button"
                                                             onClick={() => setValorPagamento(total * 0.5)}

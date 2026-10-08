@@ -24,11 +24,18 @@ import {
     Calendar,
     Filter,
     ChevronDown,
+    CreditCard,
+    CircleDollarSign,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import type { PedidoComCliente, StatusPedido } from '@/lib/database.types'
+import { QuickPaymentModal } from '@/components/quick-payment-modal'
+
+type PedidoComPagamentos = PedidoComCliente & {
+    pagamentos?: { valor: number | null }[]
+}
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -64,19 +71,42 @@ function PedidosContent() {
     const searchParams = useSearchParams()
     const dataParam = searchParams.get('data')
 
-    const [pedidos, setPedidos] = useState<PedidoComCliente[]>([])
+    const [pedidos, setPedidos] = useState<PedidoComPagamentos[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [statusFilter, setStatusFilter] = useState<StatusPedido | 'todos'>('todos')
     const [dataFilter, setDataFilter] = useState(dataParam || '')
     const [visibleCount, setVisibleCount] = useState(8)
 
+    // Quick Payment POS Modal state
+    const [quickPaymentOpen, setQuickPaymentOpen] = useState(false)
+    const [selectedPedidoPayment, setSelectedPedidoPayment] = useState<PedidoComPagamentos | null>(null)
+    const [sugestaoValor, setSugestaoValor] = useState<number | undefined>(undefined)
+    const [sugestaoObs, setSugestaoObs] = useState<string | undefined>(undefined)
+
+    // Attached contracts state
+    const [pedidosComContrato, setPedidosComContrato] = useState<Set<string>>(new Set())
+
+    function openContrato(pedidoId: string) {
+        const { data } = supabase.storage.from('contratos').getPublicUrl(`pedidos/${pedidoId}/contrato.pdf`)
+        if (data?.publicUrl) {
+            window.open(data.publicUrl, '_blank')
+        }
+    }
+
+    function openQuickPayment(pedido: PedidoComPagamentos, valorSugerido?: number, observacao?: string) {
+        setSelectedPedidoPayment(pedido)
+        setSugestaoValor(valorSugerido)
+        setSugestaoObs(observacao)
+        setQuickPaymentOpen(true)
+    }
+
     async function loadPedidos() {
         setLoading(true)
 
         let query = supabase
             .from('pedidos')
-            .select('*, clientes(*)')
+            .select('*, clientes(*), pagamentos(valor)')
             .order('created_at', { ascending: false })
             .order('data_evento', { ascending: false })
 
@@ -93,8 +123,20 @@ function PedidosContent() {
         if (error) {
             console.error('Erro ao carregar pedidos:', error)
         } else {
-            setPedidos((data as PedidoComCliente[]) || [])
+            setPedidos((data as PedidoComPagamentos[]) || [])
         }
+
+        // Check attached contracts in storage
+        try {
+            const { data: storageFolders } = await supabase.storage.from('contratos').list('pedidos')
+            if (storageFolders) {
+                const ids = new Set(storageFolders.map((f) => f.name))
+                setPedidosComContrato(ids)
+            }
+        } catch (err) {
+            console.error('Erro ao verificar contratos anexados:', err)
+        }
+
         setLoading(false)
     }
 
@@ -121,15 +163,79 @@ function PedidosContent() {
 
         if (error) {
             console.error('Erro ao atualizar status:', error)
-        } else {
-            loadPedidos()
+            return
         }
+
+        // Auto-trigger quick payment modal if setting to pago_50 or finalizado and has unpaid balance
+        const pedidoAlvo = pedidos.find((p) => p.id === pedidoId)
+        if (pedidoAlvo) {
+            const total = Number(pedidoAlvo.total_pedido || 0)
+            const pago = getValorPago(pedidoAlvo)
+            const saldoDevedor = Math.max(0, total - pago)
+
+            if (saldoDevedor > 0.01) {
+                if (newStatus === 'pago_50') {
+                    const metade = Number((total * 0.5).toFixed(2))
+                    const sugestao = pago < metade ? Number((metade - pago).toFixed(2)) : metade
+                    openQuickPayment(pedidoAlvo, sugestao, 'Sinal 50%')
+                } else if (newStatus === 'finalizado') {
+                    openQuickPayment(pedidoAlvo, saldoDevedor, 'Quitação final')
+                }
+            }
+        }
+
+        loadPedidos()
     }
 
     function openWhatsApp(whatsapp: string, nome: string) {
         const number = whatsapp.replace(/\D/g, '')
         const message = `👋 Olá ${nome}! Aqui é da *Lu Festas* 🎉\n\nComo posso ajudar?`
         window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
+    }
+
+    function formatCurrency(value: number) {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+    }
+
+    function getValorPago(pedido: PedidoComPagamentos) {
+        const totalRegistrado = pedido.pagamentos?.reduce((acc, pagamento) => acc + Number(pagamento.valor || 0), 0) || 0
+        return totalRegistrado > 0 ? totalRegistrado : Number(pedido.valor_pago || 0)
+    }
+
+    function getPaymentInfo(pedido: PedidoComPagamentos) {
+        const totalPedido = Number(pedido.total_pedido || 0)
+        const valorPago = getValorPago(pedido)
+        const percentualPago = totalPedido > 0 ? (valorPago / totalPedido) * 100 : 0
+
+        if (valorPago >= totalPedido - 0.01 && totalPedido > 0) {
+            return {
+                label: 'Pago 100%',
+                detail: `${formatCurrency(valorPago)} recebido`,
+                className: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300',
+            }
+        }
+
+        if (valorPago >= totalPedido * 0.5 - 0.01 && totalPedido > 0) {
+            return {
+                label: 'Pago 50%',
+                detail: `${formatCurrency(valorPago)} recebido`,
+                className: 'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300',
+            }
+        }
+
+        if (valorPago > 0) {
+            return {
+                label: `Pago ${Math.round(percentualPago)}%`,
+                detail: `${formatCurrency(valorPago)} recebido`,
+                className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
+            }
+        }
+
+        return {
+            label: 'Não pago',
+            detail: 'Nenhum pagamento registrado',
+            className: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
+        }
     }
 
     return (
@@ -220,11 +326,14 @@ function PedidosContent() {
                     ) : (
                         <div className="space-y-4">
                             <div className="grid gap-3 xl:grid-cols-2">
-                                {visiblePedidos.map((pedido) => (
-                                    <div
-                                        key={pedido.id}
-                                        className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                                    >
+                                {visiblePedidos.map((pedido) => {
+                                    const paymentInfo = getPaymentInfo(pedido)
+
+                                    return (
+                                        <div
+                                            key={pedido.id}
+                                            className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                                        >
                                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="min-w-0 space-y-2">
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -234,6 +343,30 @@ function PedidosContent() {
                                                     <Badge className={statusColors[pedido.status]}>
                                                         {statusLabels[pedido.status]}
                                                     </Badge>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openQuickPayment(pedido)}
+                                                        title="Clique para registrar pagamento rápido"
+                                                        className="inline-flex rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                                    >
+                                                        <Badge variant="outline" className={`${paymentInfo.className} cursor-pointer hover:opacity-80 transition-opacity`}>
+                                                            <CreditCard className="mr-1 h-3 w-3" />
+                                                            {paymentInfo.label}
+                                                        </Badge>
+                                                    </button>
+                                                    {pedidosComContrato.has(pedido.id) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openContrato(pedido.id)}
+                                                            title="Clique para visualizar o contrato PDF em nova aba"
+                                                            className="inline-flex rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        >
+                                                            <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 cursor-pointer transition-colors">
+                                                                <FileText className="mr-1 h-3 w-3" />
+                                                                Contrato PDF
+                                                            </Badge>
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                                     <span className="inline-flex items-center gap-1">
@@ -252,7 +385,10 @@ function PedidosContent() {
                                             </div>
                                             <div className="text-left sm:text-right">
                                                 <p className="text-lg font-bold">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
+                                                    {formatCurrency(pedido.total_pedido)}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {paymentInfo.detail}
                                                 </p>
                                             </div>
                                         </div>
@@ -277,7 +413,31 @@ function PedidosContent() {
                                                 </SelectContent>
                                             </Select>
 
-                                            <div className="grid grid-cols-2 gap-2 sm:flex">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {pedidosComContrato.has(pedido.id) && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => openContrato(pedido.id)}
+                                                        className="border-blue-300 text-blue-700 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                                        title="Visualizar contrato anexado em PDF"
+                                                    >
+                                                        <FileText className="mr-1.5 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                        Contrato
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => openQuickPayment(pedido)}
+                                                    className="border-emerald-500/40 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                                                    title="Registrar pagamento rápido"
+                                                >
+                                                    <CircleDollarSign className="mr-1.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                    Registrar Pgto
+                                                </Button>
                                                 <Button asChild variant="outline" size="sm">
                                                     <Link href={`/pedidos/${pedido.id}?editar=true`}>
                                                         <Pencil className="mr-2 h-4 w-4" />
@@ -292,8 +452,9 @@ function PedidosContent() {
                                                 </Button>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                        </div>
+                                    )
+                                })}
                             </div>
 
                             {hasMorePedidos && (
@@ -311,6 +472,19 @@ function PedidosContent() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Quick Payment POS Modal */}
+            <QuickPaymentModal
+                open={quickPaymentOpen}
+                onOpenChange={setQuickPaymentOpen}
+                pedido={selectedPedidoPayment}
+                valorPagoAtual={selectedPedidoPayment ? getValorPago(selectedPedidoPayment) : 0}
+                valorSugeridoInicial={sugestaoValor}
+                observacaoInicial={sugestaoObs}
+                onSuccess={() => {
+                    loadPedidos()
+                }}
+            />
         </div>
     )
 }

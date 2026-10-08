@@ -431,7 +431,7 @@ export default function RotasPage() {
                     <div className="flex flex-wrap gap-4">
                         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
+                                <Button variant="outline" className="w-full justify-start text-left font-normal sm:w-[200px]">
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {format(new Date(dataRota + 'T12:00:00'), "dd/MM/yyyy")}
                                 </Button>
@@ -582,7 +582,7 @@ export default function RotasPage() {
                                             {entrega.pedido.clientes?.endereco_completo}
                                         </a>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row">
                                         <Button
                                             variant="outline"
                                             size="sm"

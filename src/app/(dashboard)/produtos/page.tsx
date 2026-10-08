@@ -330,7 +330,7 @@ export default function ProdutosPage() {
                         Visão visual e controle de disponibilidade.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                     <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline">
@@ -344,7 +344,7 @@ export default function ProdutosPage() {
                                 <DialogDescription>Adicione ou remova categorias.</DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
-                                <form onSubmit={handleAddCategory} className="flex gap-2">
+                                <form onSubmit={handleAddCategory} className="flex flex-col gap-2 sm:flex-row">
                                     <Input
                                         placeholder="Nova categoria..."
                                         value={newCategoryName}
@@ -352,7 +352,7 @@ export default function ProdutosPage() {
                                         className="flex-1"
                                     />
                                     <Select value={newCategoryColor} onValueChange={setNewCategoryColor}>
-                                        <SelectTrigger className="w-[120px]">
+                                        <SelectTrigger className="w-full sm:w-[120px]">
                                             <div className="flex items-center gap-2">
                                                 <div className={`h-3 w-3 rounded-full ${newCategoryColor}`} />
                                                 <span>Cor</span>
@@ -431,7 +431,7 @@ export default function ProdutosPage() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-4 sm:grid-cols-2">
                                         <div className="grid gap-2">
                                             <Label htmlFor="quantidade">Qtd Total</Label>
                                             <Input
@@ -487,7 +487,7 @@ export default function ProdutosPage() {
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="w-[160px] bg-background"
+                            className="w-full bg-background sm:w-[160px]"
                         />
                     </div>
                 </CardContent>

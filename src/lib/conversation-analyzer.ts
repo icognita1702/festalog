@@ -76,7 +76,7 @@ export async function extractDataFromConversation(
 ): Promise<ExtractionResult> {
     const cleaned = preprocessConversation(conversation)
 
-    if (cleaned.length < 30) {
+    if (cleaned.length < 10) {
         return emptyResult('Conversa muito curta')
     }
 
@@ -118,8 +118,9 @@ async function callGemini(conversation: string, apiKey: string): Promise<Extract
                 // Se falhar validação, tenta o próximo modelo
             }
 
-        } catch (error: any) {
-            console.warn(`[Gemini] Erro no modelo ${modelName}:`, error.message)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro desconhecido'
+            console.warn(`[Gemini] Erro no modelo ${modelName}:`, message)
             lastError = error
         }
     }

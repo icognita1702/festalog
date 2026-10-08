@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { extractDataFromConversation } from '../conversation-analyzer'
 
 // Variável para capturar a função de geração
-let mockGenerateContent = vi.fn().mockResolvedValue({
+const mockGenerateContent = vi.fn().mockResolvedValue({
     response: { text: () => JSON.stringify({}) }
 })
 
@@ -62,3 +62,4 @@ describe('conversation-analyzer', () => {
         expect(result.confianca).toBe(1)
     })
 })
+

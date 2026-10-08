@@ -146,6 +146,7 @@
 
 html {
   background: var(--background);
+  overflow-x: hidden;
 }
 
 @supports (padding: max(0px)) {

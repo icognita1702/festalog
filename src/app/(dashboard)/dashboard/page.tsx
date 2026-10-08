@@ -249,9 +249,11 @@ export default function DashboardPage() {
                     </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                    <Button>
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        Agendar Evento
+                    <Button asChild>
+                        <Link href="/pedidos/novo">
+                            <CalendarDays className="mr-2 h-4 w-4" />
+                            Agendar Evento
+                        </Link>
                     </Button>
                 </div>
             </div>
@@ -315,18 +317,18 @@ export default function DashboardPage() {
 
             {/* Charts Section */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
+                <Card className="min-w-0 lg:col-span-4">
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <CardTitle>Visão Geral de Receita</CardTitle>
                             <BarChart3 className="h-4 w-4 text-muted-foreground" />
                         </div>
                     </CardHeader>
-                    <CardContent className="pl-2">
+                    <CardContent className="overflow-hidden pl-2 pr-2 sm:pr-6">
                         <Overview data={revenueData} />
                     </CardContent>
                 </Card>
-                <Card className="col-span-3">
+                <Card className="min-w-0 lg:col-span-3">
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <CardTitle>Itens Mais Alugados</CardTitle>
@@ -344,7 +346,7 @@ export default function DashboardPage() {
             <div className="grid gap-8 lg:grid-cols-3">
                 {/* Pedidos Recentes */}
                 <Card className="lg:col-span-2">
-                    <CardHeader className="flex flex-row items-center justify-between">
+                    <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <CardTitle>Pedidos Recentes</CardTitle>
                             <CardDescription>Últimos pedidos cadastrados no sistema</CardDescription>
@@ -376,21 +378,21 @@ export default function DashboardPage() {
                                 {pedidosRecentes.map((pedido) => (
                                     <div
                                         key={pedido.id}
-                                        className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
-                                    >
-                                        <div className="flex items-center gap-4">
+                                    className="flex flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
+                                >
+                                        <div className="flex min-w-0 items-center gap-4">
                                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                                                 <CalendarDays className="h-5 w-5 text-primary" />
                                             </div>
-                                            <div>
-                                                <p className="font-medium">{pedido.clientes?.nome || 'Cliente'}</p>
+                                            <div className="min-w-0">
+                                                <p className="truncate font-medium">{pedido.clientes?.nome || 'Cliente'}</p>
                                                 <p className="text-sm text-muted-foreground">
                                                     {format(new Date(pedido.data_evento), "dd/MM/yyyy")}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                                            <div className="text-left sm:text-right">
                                                 <p className="font-medium">
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
                                                 </p>
