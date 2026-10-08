@@ -753,230 +753,55 @@ export default function PedidoDetalhesPage() {
 
     async function enviarContratoWhatsApp() {
         if (!pedido) return
-        setGerando(true)
 
-        try {
-            // Gerar o PDF COMPLETO (mesmo código do gerarContratoPDF)
-            const pdfDoc = await PDFDocument.create()
-            let page = pdfDoc.addPage([595, 842])
-            const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+        let pdfUrl = attachedContractUrl || ''
 
-            const { height } = page.getSize()
-            let y = height - 50
-            const margin = 50
-            const lineHeight = 14
-
-            const nomeLoja = 'LU FESTAS'
-            const cnpjLoja = '46.446.131/0001-06'
-            const enderecoLoja = 'Rua Ariramba, 121 - Alípio de Melo, Belo Horizonte, MG'
-
-            const checkNewPage = (neededSpace = 30) => {
-                if (y < 50 + neededSpace) {
-                    page = pdfDoc.addPage([595, 842])
-                    y = height - 50
+        if (!pdfUrl) {
+            setGerando(true)
+            try {
+                const { data } = await supabase.storage.from('contratos').list(`pedidos/${pedido.id}`)
+                const contractFile = data?.find(
+                    (f) => f.name === 'contrato.pdf' || f.name.toLowerCase().endsWith('.pdf')
+                )
+                if (contractFile) {
+                    const { data: urlData } = supabase.storage
+                        .from('contratos')
+                        .getPublicUrl(`pedidos/${pedido.id}/${contractFile.name}`)
+                    pdfUrl = urlData?.publicUrl || ''
                 }
+            } catch (err) {
+                console.error('Erro ao verificar contrato anexado:', err)
+            } finally {
+                setGerando(false)
             }
-
-            const drawWrappedText = (text: string, size: number = 10, isBold: boolean = false) => {
-                const words = text.split(' ')
-                let line = ''
-                words.forEach(word => {
-                    const testLine = line + word + ' '
-                    const width = isBold ? fontBold.widthOfTextAtSize(testLine, size) : font.widthOfTextAtSize(testLine, size)
-                    if (width > 495) {
-                        checkNewPage(size + 2)
-                        page.drawText(line, { x: margin, y, size, font: isBold ? fontBold : font })
-                        y -= size + 4
-                        line = word + ' '
-                    } else {
-                        line = testLine
-                    }
-                })
-                if (line) {
-                    checkNewPage(size + 2)
-                    page.drawText(line, { x: margin, y, size, font: isBold ? fontBold : font })
-                    y -= size + 2
-                }
-            }
-
-            // CABEÇALHO
-            page.drawText('CONTRATO DE LOCAÇÃO DE MATERIAIS PARA FESTAS', { x: 120, y, size: 14, font: fontBold, color: rgb(0, 0, 0) })
-            y -= 25
-            drawWrappedText('Pelo presente instrumento particular de contrato de locação, de um lado, denominado LOCADOR:', 10)
-            y -= 10
-
-            // LOCADOR
-            page.drawText(`${nomeLoja}`, { x: margin, y, size: 11, font: fontBold })
-            y -= lineHeight
-            page.drawText(`CNPJ: ${cnpjLoja}`, { x: margin, y, size: 10, font })
-            y -= lineHeight
-            page.drawText(`Endereço: ${enderecoLoja}`, { x: margin, y, size: 10, font })
-            y -= 20
-
-            // LOCATÁRIO
-            drawWrappedText('E, de outro lado, denominado LOCATÁRIO:', 10)
-            y -= 10
-            page.drawText(`${pedido.clientes?.nome?.toUpperCase() || ''}`, { x: margin, y, size: 11, font: fontBold })
-            y -= lineHeight
-            page.drawText(`CPF: ${pedido.clientes?.cpf || 'Não informado'}`, { x: margin, y, size: 10, font })
-            y -= lineHeight
-            page.drawText(`Endereço: ${pedido.clientes?.endereco_completo || ''}`, { x: margin, y, size: 10, font })
-            y -= 20
-            drawWrappedText('Têm entre si justo e acordado o que segue:', 10)
-            y -= 15
-
-            // CLÁUSULA 1
-            checkNewPage()
-            page.drawText('Cláusula 1ª: Objeto da Locação', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            drawWrappedText('1.1. O presente contrato tem como objeto a locação dos seguintes itens:', 10)
-            y -= lineHeight
-
-            // Tabela de itens
-            page.drawText('Qtd', { x: margin, y, size: 9, font: fontBold })
-            page.drawText('Descrição', { x: 85, y, size: 9, font: fontBold })
-            page.drawText('Valor Unit.', { x: 350, y, size: 9, font: fontBold })
-            page.drawText('Subtotal', { x: 450, y, size: 9, font: fontBold })
-            y -= 5
-            page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
-            y -= 15
-
-            pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
-                checkNewPage()
-                const subtotalItem = item.quantidade * item.preco_unitario
-                page.drawText(item.quantidade.toString(), { x: margin, y, size: 9, font })
-                page.drawText(item.produtos?.nome || '', { x: 85, y, size: 9, font })
-                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario), { x: 350, y, size: 9, font })
-                page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotalItem), { x: 450, y, size: 9, font })
-                y -= 15
-            })
-
-            page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
-            y -= 15
-            page.drawText('TOTAL:', { x: 350, y, size: 10, font: fontBold })
-            page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido), { x: 450, y, size: 10, font: fontBold })
-            y -= 15
-
-            checkNewPage()
-            drawWrappedText('1.2. Todos os itens encontram-se em bom estado de conservação e limpeza.', 10)
-            y -= 15
-
-            // CLÁUSULA 2
-            checkNewPage()
-            page.drawText('Cláusula 2ª: Proibição de Transferência', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            drawWrappedText('2.1. Fica expressamente proibido ao LOCATÁRIO transferir, sub-locar, ceder ou emprestar os bens objeto deste contrato a terceiros.', 10)
-            y -= 15
-
-            // CLÁUSULA 3
-            checkNewPage()
-            page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
-            const horaEntrega2 = (pedido as any).hora_entrega || '14:00'
-            const [h2, m2] = horaEntrega2.split(':').map(Number)
-            const horaIni2 = `${String(Math.max(0, h2 - 1)).padStart(2, '0')}:${String(m2).padStart(2, '0')}`
-            const horaFim2 = `${String(Math.min(23, h2 + 1)).padStart(2, '0')}:${String(m2).padStart(2, '0')}`
-            drawWrappedText(`3.1. Entrega prevista entre ${horaIni2} e ${horaFim2} do dia ${dataEvento}.`, 10)
-            y -= 5
-            drawWrappedText(`3.2. Endereço: ${pedido.clientes?.endereco_completo || ''}.`, 10)
-            y -= 10
-            page.drawText('IMPORTANTE: NÃO SUBIMOS ESCADAS/ELEVADORES.', { x: margin, y, size: 10, font: fontBold, color: rgb(0.8, 0, 0) })
-            y -= 15
-
-            // CLÁUSULA 4
-            checkNewPage()
-            page.drawText('Cláusula 4ª: Valor do Aluguel e Forma de Pagamento', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            const valorTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)
-            const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
-            drawWrappedText(`4.1. O valor do material alugado será de ${valorTotal}. Sinal de 50%: ${valorSinal}.`, 10)
-            y -= 10
-            page.drawText('Dados para pagamento via PIX:', { x: margin, y, size: 10, font: fontBold })
-            y -= lineHeight
-            page.drawText('CHAVE PIX CNPJ: 46.446.131/0001-06 | GABRIEL LUCAS | BANCO: CORA SCD', { x: margin, y, size: 9, font })
-            y -= 20
-
-            // CLÁUSULAS 5-12
-            const clausulas = [
-                { t: 'Cláusula 5ª: Rescisão Contratual', c: '5.1. Caso não ocorra o pagamento na data da entrega, este contrato será automaticamente rescindido.' },
-                { t: 'Cláusula 6ª: Devolução dos Bens', c: '6.1. Os bens deverão ser devolvidos nas mesmas condições de conservação em que foram recebidos.' },
-                { t: 'Cláusula 7ª: Multa por Atraso', c: '7.1. Multa de R$ 30,00 por dia de atraso na devolução.' },
-                { t: 'Cláusula 8ª: Responsabilidade por Danos', c: '8.1. Danos e quebras: Mesa R$80, Cadeira R$60, Toalhas R$30, Isopor 100L R$120.' },
-                { t: 'Cláusula 9ª: Cuidados e Limpeza', c: '9.1. O LOCATÁRIO deverá zelar pela limpeza e conservação. Em caso de manchas permanentes, comunicar imediatamente.' },
-                { t: 'Cláusula 10ª: Alteração de Horário', c: '10.1. Alterações com aviso prévio de 3 horas.' },
-                { t: 'Cláusula 11ª: Responsabilidade dos Sucessores', c: '11.1. Herdeiros e sucessores se obrigam ao inteiro teor deste contrato.' },
-                { t: 'Cláusula 12ª: Foro Competente', c: '12.1. Fica eleito o foro da comarca de BELO HORIZONTE - MG.' }
-            ]
-
-            clausulas.forEach(cl => {
-                checkNewPage()
-                page.drawText(cl.t, { x: margin, y, size: 10, font: fontBold })
-                y -= lineHeight
-                drawWrappedText(cl.c, 10)
-                y -= 10
-            })
-
-            // ASSINATURAS
-            checkNewPage(80)
-            drawWrappedText('Por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor.', 10)
-            y -= 20
-            page.drawText(`Belo Horizonte, ${format(new Date(), "dd/MM/yyyy")}`, { x: margin, y, size: 10, font })
-            y -= 40
-            page.drawLine({ start: { x: margin, y }, end: { x: 250, y }, thickness: 0.5 })
-            page.drawLine({ start: { x: 300, y }, end: { x: 545, y }, thickness: 0.5 })
-            y -= 15
-            page.drawText('LOCADOR: GABRIEL L. S. SOUZA', { x: margin, y, size: 9, font })
-            page.drawText('LOCATARIO: ' + (pedido.clientes?.nome?.toUpperCase() || ''), { x: 300, y, size: 9, font })
-
-            const pdfBytes = await pdfDoc.save()
-
-            // Upload para Supabase Storage
-            const fileName = `contrato_${pedido.id.slice(0, 8)}_${Date.now()}.pdf`
-            const { error: uploadError } = await supabase.storage
-                .from('contratos')
-                .upload(fileName, pdfBytes, { contentType: 'application/pdf', upsert: true })
-
-            let pdfUrl = ''
-            if (uploadError) {
-                console.error('Erro no upload:', uploadError)
-                alert('Aviso: Erro ao fazer upload do PDF. Mensagem será enviada sem o link.')
-            } else {
-                const { data: urlData } = supabase.storage.from('contratos').getPublicUrl(fileName)
-                pdfUrl = urlData?.publicUrl || ''
-                console.log('PDF URL:', pdfUrl)
-            }
-
-            // Enviar via WhatsApp
-            const number = pedido.clientes?.whatsapp.replace(/\D/g, '') || ''
-
-            const message =
-                `📋 *CONTRATO - LU FESTAS*\n\n` +
-                `Olá *${pedido.clientes?.nome}*! 👋\n\n` +
-                `Seu contrato está pronto para assinatura. ✅\n\n` +
-                (pdfUrl ? `📄 *BAIXAR CONTRATO:*\n${pdfUrl}\n\n` : '⚠️ *Erro ao gerar link do contrato*\n\n') +
-                `📅 Data do Evento: ${dataEvento}\n` +
-                `💰 Valor Total: ${valorTotal}\n` +
-                `💳 Sinal (50%): ${valorSinal}\n\n` +
-                `🏦 *PIX para pagamento:*\n` +
-                `Chave CNPJ: 46.446.131/0001-06\n` +
-                `Nome: GABRIEL LUCAS\n` +
-                `Banco: CORA SCD\n\n` +
-                `🎉 *Lu Festas* - Tornando seus momentos especiais!`
-
-            window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
-
-            // Atualizar status
-            await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)
-            loadPedido()
-
-        } catch (error) {
-            console.error('Erro ao enviar contrato:', error)
-            alert('Erro ao enviar contrato.')
-        } finally {
-            setGerando(false)
         }
+
+        if (!pdfUrl) {
+            alert('⚠️ Nenhum contrato anexado a este pedido.\n\nPor favor, anexe o PDF do contrato no card "Contrato Anexado" antes de enviar.')
+            return
+        }
+
+        const number = pedido.clientes?.whatsapp?.replace(/\D/g, '') || ''
+        if (!number) {
+            alert('⚠️ Cliente sem número de WhatsApp cadastrado.')
+            return
+        }
+
+        const message =
+            `Olá, tudo bem? 😊\n\n` +
+            `📑 Segue o contrato já assinado por nós. Agora, precisamos da sua confirmação. Por favor:\n` +
+            `1️⃣ Revise atentamente o documento.\n` +
+            `2️⃣ Caso concorde, há duas opções:\n\n` +
+            `Assine digitalmente e nos envie de volta, ou\n` +
+            `Se preferir, confirme os dados e responda a esta mensagem informando que está de acordo.\n\n` +
+            `⚠️ Lembramos que o cumprimento das cláusulas é essencial para garantir uma experiência tranquila para todos.\n\n` +
+            `Qualquer dúvida, estamos à disposição para ajudar! 💬✨\n\n` +
+            `📄 *CONTRATO:*\n${pdfUrl}`
+
+        window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
+
+        await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)
+        loadPedido()
     }
 
     if (loading) {
