@@ -284,66 +284,21 @@ export default function PedidoDetalhesPage() {
         setSalvando(true)
 
         try {
-            // 1. Atualizar dados do pedido
-            const { error: pedidoError } = await supabase
-                .from('pedidos')
-                .update({
-                    data_evento: dataEventoEdit,
-                    hora_entrega: horaEntregaEdit,
-                    observacoes: observacoesEdit,
-                    total_pedido: totalEdit,
-                    usar_endereco_residencial: usarEnderecoResidencialEdit,
-                    endereco_evento: usarEnderecoResidencialEdit ? null : enderecoEventoEdit,
-                })
-                .eq('id', pedidoId)
-
-            if (pedidoError) throw pedidoError
-
-            // 2. Identificar itens para deletar, inserir e atualizar
-            const itensOriginais = new Set((pedido.itens_pedido || []).map((item: ItemPedidoComProduto) => item.id))
-            const itensAtuais = new Set(carrinhoEdit.filter(item => item.id).map(item => item.id))
-
-            // Itens para deletar (estavam no original mas não estão mais)
-            const itensDeletar = [...itensOriginais].filter(id => !itensAtuais.has(id))
-
-            // 3. Deletar itens removidos
-            if (itensDeletar.length > 0) {
-                const { error: deleteError } = await supabase
-                    .from('itens_pedido')
-                    .delete()
-                    .in('id', itensDeletar)
-
-                if (deleteError) throw deleteError
-            }
-
-            // 4. Atualizar itens existentes
-            for (const item of carrinhoEdit.filter(i => i.id && !i.isNew)) {
-                const { error: updateError } = await supabase
-                    .from('itens_pedido')
-                    .update({
-                        quantidade: item.quantidade,
-                        preco_unitario: item.preco_unitario
-                    })
-                    .eq('id', item.id!)
-
-                if (updateError) throw updateError
-            }
-
-            // 5. Inserir novos itens
-            const novosItens = carrinhoEdit.filter(i => i.isNew).map(item => ({
-                pedido_id: pedidoId,
-                produto_id: item.produto.id,
-                quantidade: item.quantidade,
-                preco_unitario: item.preco_unitario
-            }))
-
-            if (novosItens.length > 0) {
-                const { error: insertError } = await supabase
-                    .from('itens_pedido')
-                    .insert(novosItens)
-
-                if (insertError) throw insertError
-            }
+            const { error } = await supabase.rpc('editar_pedido_transacional', {
+                p_pedido_id: pedidoId,
+                p_data_evento: dataEventoEdit,
+                p_hora_entrega: horaEntregaEdit || null,
+                p_observacoes: observacoesEdit || null,
+                p_usar_endereco_residencial: usarEnderecoResidencialEdit,
+                p_endereco_evento: usarEnderecoResidencialEdit ? null : enderecoEventoEdit,
+                p_itens: carrinhoEdit.map((item) => ({
+                    id: item.isNew ? null : item.id || null,
+                    produto_id: item.produto.id,
+                    quantidade: item.quantidade,
+                    preco_unitario: item.preco_unitario,
+                })),
+            })
+            if (error) throw error
 
             // Recarregar pedido e sair do modo edição
             await loadPedido()
@@ -352,7 +307,8 @@ export default function PedidoDetalhesPage() {
 
         } catch (error) {
             console.error('Erro ao salvar edição:', error)
-            alert('Erro ao salvar alterações. Tente novamente.')
+            const message = error instanceof Error ? error.message : 'Falha inesperada ao salvar.'
+            alert(`Não foi possível salvar as alterações: ${message}`)
         } finally {
             setSalvando(false)
         }
@@ -366,13 +322,14 @@ export default function PedidoDetalhesPage() {
     }, [dataEventoEdit, modoEdicao])
 
     async function updateStatus(newStatus: StatusPedido) {
-        const { error } = await supabase
-            .from('pedidos')
-            .update({ status: newStatus })
-            .eq('id', pedidoId)
+        const { error } = await supabase.rpc('atualizar_status_pedido_transacional', {
+            p_pedido_id: pedidoId,
+            p_status: newStatus,
+        })
 
         if (error) {
             console.error('Erro ao atualizar status:', error)
+            alert(`Não foi possível atualizar o status: ${error.message}`)
         } else {
             loadPedido()
 
@@ -556,6 +513,16 @@ export default function PedidoDetalhesPage() {
 
             page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
             y -= 15
+            const freteContrato = Number(pedido.frete || 0)
+            const descontoContrato = Math.max(0, subtotalItens + freteContrato - Number(pedido.total_pedido))
+            page.drawText('Frete:', { x: 350, y, size: 9, font })
+            page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(freteContrato), { x: 450, y, size: 9, font })
+            y -= 15
+            if (descontoContrato > 0.01) {
+                page.drawText('Desconto:', { x: 350, y, size: 9, font })
+                page.drawText(`-${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(descontoContrato)}`, { x: 450, y, size: 9, font })
+                y -= 15
+            }
             page.drawText('TOTAL:', { x: 350, y, size: 10, font: fontBold })
             page.drawText(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido), { x: 450, y, size: 10, font: fontBold })
             y -= 15
@@ -800,7 +767,13 @@ export default function PedidoDetalhesPage() {
 
         window.open(`https://api.whatsapp.com/send?phone=55${number}&text=${encodeURIComponent(message)}`, '_blank')
 
-        await supabase.from('pedidos').update({ status: 'contrato_enviado' }).eq('id', pedido.id)
+        const { error: statusError } = await supabase.rpc('atualizar_status_pedido_transacional', {
+            p_pedido_id: pedido.id,
+            p_status: 'contrato_enviado',
+        })
+        if (statusError) {
+            alert(`O contrato foi preparado, mas o status não foi atualizado: ${statusError.message}`)
+        }
         loadPedido()
     }
 
@@ -1260,6 +1233,12 @@ export default function PedidoDetalhesPage() {
                     <PaymentSection
                         pedidoId={pedidoId}
                         totalPedido={pedido.total_pedido}
+                        desconto={{
+                            tipo: pedido.desconto_tipo,
+                            valor: pedido.desconto_valor,
+                            escopo: pedido.desconto_escopo,
+                            produtoId: pedido.desconto_produto_id,
+                        }}
                         onPaymentChange={loadPedido}
                     />
 
@@ -1293,6 +1272,10 @@ export default function PedidoDetalhesPage() {
                     clientes: pedido.clientes,
                     data_evento: pedido.data_evento,
                     valor_pago: (pedido as any).valor_pago,
+                    desconto_tipo: pedido.desconto_tipo,
+                    desconto_valor: pedido.desconto_valor,
+                    desconto_escopo: pedido.desconto_escopo,
+                    desconto_produto_id: pedido.desconto_produto_id,
                 } : null}
                 valorPagoAtual={Number((pedido as any)?.valor_pago || 0)}
                 valorSugeridoInicial={sugestaoValor}

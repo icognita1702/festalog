@@ -298,6 +298,15 @@ export default function PublicContractPage() {
                 ))}
               </TableBody>
             </Table>
+            {Number(pedido.total_pedido) <
+              (pedido.itens_pedido || []).reduce((sum, item) => sum + item.quantidade * item.preco_unitario, 0) + Number(pedido.frete || 0) - 0.01 && (
+              <div className="mt-4 flex justify-between text-sm text-muted-foreground">
+                <span>Desconto aplicado</span>
+                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  Math.max(0, (pedido.itens_pedido || []).reduce((sum, item) => sum + item.quantidade * item.preco_unitario, 0) + Number(pedido.frete || 0) - Number(pedido.total_pedido))
+                )}</span>
+              </div>
+            )}
             <div className="mt-4 flex justify-between border-t pt-4">
               <span className="font-medium">Total</span>
               <span className="text-lg font-bold text-primary">

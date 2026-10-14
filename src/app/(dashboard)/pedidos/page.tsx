@@ -156,13 +156,14 @@ function PedidosContent() {
     }, [searchTerm, statusFilter, dataFilter])
 
     async function updateStatus(pedidoId: string, newStatus: StatusPedido) {
-        const { error } = await supabase
-            .from('pedidos')
-            .update({ status: newStatus })
-            .eq('id', pedidoId)
+        const { error } = await supabase.rpc('atualizar_status_pedido_transacional', {
+            p_pedido_id: pedidoId,
+            p_status: newStatus,
+        })
 
         if (error) {
             console.error('Erro ao atualizar status:', error)
+            alert(`Não foi possível atualizar o status: ${error.message}`)
             return
         }
 

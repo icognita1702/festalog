@@ -43,6 +43,8 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
+import { OrderDiscountFields } from '@/components/order-discount-fields'
+import { noDiscount, type OrderDiscount } from '@/lib/order-discount'
 
 interface Pagamento {
     id: string
@@ -57,21 +59,24 @@ interface Pagamento {
 interface PaymentSectionProps {
     pedidoId: string
     totalPedido: number
+    desconto?: OrderDiscount
     onPaymentChange?: () => void
 }
 
 const metodoConfig: Record<string, { label: string; icon: typeof CreditCard }> = {
+    legado: { label: 'Registro anterior', icon: CreditCard },
     pix: { label: 'PIX', icon: Wallet },
     dinheiro: { label: 'Dinheiro', icon: Banknote },
     cartao: { label: 'Cartão', icon: CreditCard },
     transferencia: { label: 'Transferência', icon: CreditCard },
 }
 
-export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: PaymentSectionProps) {
+export function PaymentSection({ pedidoId, totalPedido, desconto, onPaymentChange }: PaymentSectionProps) {
     const [pagamentos, setPagamentos] = useState<Pagamento[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
+    const [descontoForm, setDescontoForm] = useState<OrderDiscount>(desconto || noDiscount)
 
     const [formData, setFormData] = useState({
         valor: 0,
@@ -115,6 +120,14 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
     const percentualPago = totalPedido > 0 ? (totalPago / totalPedido) * 100 : 0
     const isPagoCompleto = saldoDevedor <= 0.01
 
+    const descontoTipo = desconto?.tipo ?? null
+    const descontoValor = desconto?.valor ?? null
+    const descontoEscopo = desconto?.escopo ?? null
+    const descontoProdutoId = desconto?.produtoId ?? null
+    useEffect(() => {
+        setDescontoForm({ tipo: descontoTipo, valor: descontoValor, escopo: descontoEscopo, produtoId: descontoProdutoId })
+    }, [descontoTipo, descontoValor, descontoEscopo, descontoProdutoId])
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         if (formData.valor <= 0) {
@@ -124,15 +137,17 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
 
         setSaving(true)
         try {
-            const { error } = await (supabase as any)
-                .from('pagamentos')
-                .insert({
-                    pedido_id: pedidoId,
-                    valor: formData.valor,
-                    metodo: formData.metodo,
-                    observacao: formData.observacao || null,
-                    data_pagamento: formData.data_pagamento,
-                })
+            const { error } = await supabase.rpc('registrar_pagamento_com_desconto', {
+                p_pedido_id: pedidoId,
+                p_valor: formData.valor,
+                p_metodo: formData.metodo,
+                p_observacao: formData.observacao || null,
+                p_data_pagamento: formData.data_pagamento,
+                p_desconto_tipo: descontoForm.tipo,
+                p_desconto_valor: descontoForm.valor,
+                p_desconto_escopo: descontoForm.escopo,
+                p_desconto_produto_id: descontoForm.produtoId,
+            })
 
             if (error) throw error
 
@@ -191,8 +206,8 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
                         <CardDescription>Controle de pagamentos parciais</CardDescription>
                     </div>
                     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button size="sm" disabled={isPagoCompleto}>
+                    <DialogTrigger asChild>
+                            <Button size="sm">
                                 <Plus className="mr-2 h-4 w-4" />
                                 Registrar
                             </Button>
@@ -237,7 +252,7 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {Object.entries(metodoConfig).map(([key, config]) => (
+                                                    {Object.entries(metodoConfig).filter(([key]) => key !== 'legado').map(([key, config]) => (
                                                         <SelectItem key={key} value={key}>
                                                             <div className="flex items-center gap-2">
                                                                 <config.icon className="h-4 w-4" />
@@ -268,6 +283,7 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
                                             placeholder="Ex: Sinal via PIX"
                                         />
                                     </div>
+                                    <OrderDiscountFields pedidoId={pedidoId} value={descontoForm} onChange={setDescontoForm} />
                                 </div>
                                 <DialogFooter>
                                     <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
@@ -299,9 +315,9 @@ export function PaymentSection({ pedidoId, totalPedido, onPaymentChange }: Payme
                             </span>
                         </div>
                         <div>
-                            <span className="text-muted-foreground">Restante: </span>
+                        <span className="text-muted-foreground">Saldo: </span>
                             <span className={`font-medium ${saldoDevedor > 0 ? 'text-destructive' : 'text-green-600'}`}>
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, saldoDevedor))}
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saldoDevedor)}
                             </span>
                         </div>
                     </div>

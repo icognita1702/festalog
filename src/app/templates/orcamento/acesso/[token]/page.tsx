@@ -87,6 +87,9 @@ export default function PublicBudgetPage() {
     })
     message += `\nSubtotal: ${formatCurrency(subtotal)}`
     message += `\nFrete: ${formatCurrency(frete)}`
+    if (pedido.total_pedido < subtotal + frete - 0.01) {
+      message += `\nDesconto aplicado: ${formatCurrency(Math.max(0, subtotal + frete - pedido.total_pedido))}`
+    }
     message += `\nTotal: ${formatCurrency(pedido.total_pedido)}`
     message += `\n\nLink completo:\n${window.location.href}`
 
@@ -213,6 +216,10 @@ export default function PublicBudgetPage() {
                 </span>
                 <span>{formatCurrency(frete)}</span>
               </div>
+              {pedido.total_pedido < subtotal + frete - 0.01 && <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Desconto aplicado</span>
+                <span>{formatCurrency(Math.max(0, subtotal + frete - pedido.total_pedido))}</span>
+              </div>}
               <div className="flex justify-between border-t pt-4 text-xl font-bold">
                 <span>Total</span>
                 <span className="text-primary">{formatCurrency(pedido.total_pedido)}</span>

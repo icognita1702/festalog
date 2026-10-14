@@ -394,6 +394,10 @@ export interface Database {
           valor_pago: number | null
           data_vencimento: string | null
           inadimplente: boolean | null
+          desconto_tipo: 'percentual' | 'valor' | 'preco_final' | null
+          desconto_valor: number | null
+          desconto_escopo: 'pedido' | 'produto' | null
+          desconto_produto_id: string | null
           created_at: string | null
         }
         Insert: {
@@ -415,6 +419,10 @@ export interface Database {
           valor_pago?: number | null
           data_vencimento?: string | null
           inadimplente?: boolean | null
+          desconto_tipo?: 'percentual' | 'valor' | 'preco_final' | null
+          desconto_valor?: number | null
+          desconto_escopo?: 'pedido' | 'produto' | null
+          desconto_produto_id?: string | null
           created_at?: string | null
         }
         Update: {
@@ -436,6 +444,10 @@ export interface Database {
           valor_pago?: number | null
           data_vencimento?: string | null
           inadimplente?: boolean | null
+          desconto_tipo?: 'percentual' | 'valor' | 'preco_final' | null
+          desconto_valor?: number | null
+          desconto_escopo?: 'pedido' | 'produto' | null
+          desconto_produto_id?: string | null
           created_at?: string | null
         }
         Relationships: [
@@ -672,6 +684,56 @@ export interface Database {
           quantidade_reservada: number
           quantidade_disponivel: number
         }[]
+      }
+      editar_pedido_transacional: {
+        Args: {
+          p_pedido_id: string
+          p_data_evento: string
+          p_hora_entrega: string | null
+          p_observacoes: string | null
+          p_usar_endereco_residencial: boolean
+          p_endereco_evento: string | null
+          p_itens: Json
+        }
+        Returns: number
+      }
+      criar_pedido_transacional: {
+        Args: {
+          p_cliente_id: string
+          p_data_evento: string
+          p_hora_entrega: string | null
+          p_observacoes: string | null
+          p_frete: number
+          p_distancia_km: number
+          p_usar_endereco_residencial: boolean
+          p_endereco_evento: string | null
+          p_itens: Json
+          p_pagamento_valor?: number
+          p_pagamento_metodo?: string | null
+        }
+        Returns: string
+      }
+      atualizar_status_pedido_transacional: {
+        Args: { p_pedido_id: string; p_status: StatusPedido }
+        Returns: undefined
+      }
+      assinar_pedido_transacional: {
+        Args: { p_pedido_id: string; p_assinatura_url: string; p_tenant_id?: string | null }
+        Returns: undefined
+      }
+      registrar_pagamento_com_desconto: {
+        Args: {
+          p_pedido_id: string
+          p_valor: number
+          p_metodo: string
+          p_observacao: string | null
+          p_data_pagamento: string
+          p_desconto_tipo: 'percentual' | 'valor' | 'preco_final' | null
+          p_desconto_valor: number | null
+          p_desconto_escopo: 'pedido' | 'produto' | null
+          p_desconto_produto_id: string | null
+        }
+        Returns: number
       }
       calcular_saldo_devedor: {
         Args: {

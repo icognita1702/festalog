@@ -199,66 +199,31 @@ export default function NovoPedidoPage() {
         setSaving(true)
 
         try {
-            // Criar pedido
-            const { data: pedido, error: pedidoError } = await supabase
-                .from('pedidos')
-                .insert({
-                    cliente_id: clienteId,
-                    data_evento: dataEvento,
-                    hora_entrega: horaEntrega,
-                    observacoes,
-                    total_pedido: total,
-                    frete: frete,
-                    distancia_km: 0,
-                    usar_endereco_residencial: usarEnderecoResidencial,
-                    endereco_evento: usarEnderecoResidencial ? null : enderecoEvento,
-                })
-                .select()
-                .single()
-
-            if (pedidoError) throw pedidoError
-
-            // Criar itens do pedido
-            const itens = carrinho.map(item => ({
-                pedido_id: pedido.id,
-                produto_id: item.produto.id,
-                quantidade: item.quantidade,
-                preco_unitario: item.produto.preco_unitario,
-            }))
-
-            const { error: itensError } = await supabase
-                .from('itens_pedido')
-                .insert(itens)
-
-            if (itensError) throw itensError
-
-            // Criar pagamento inicial se registrado
-            if (registrarPagamento && valorPagamento > 0) {
-                const { error: pagamentoError } = await (supabase as any)
-                    .from('pagamentos')
-                    .insert({
-                        pedido_id: pedido.id,
-                        valor: valorPagamento,
-                        metodo: metodoPagamento,
-                        data_pagamento: new Date().toISOString().split('T')[0],
-                    })
-
-                if (pagamentoError) {
-                    console.error('Erro ao registrar pagamento:', pagamentoError)
-                    // Não interrompe o fluxo, apenas loga o erro
-                }
-
-                // Atualizar valor_pago no pedido
-                await (supabase as any)
-                    .from('pedidos')
-                    .update({ valor_pago: valorPagamento })
-                    .eq('id', pedido.id)
-            }
+            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_transacional', {
+                p_cliente_id: clienteId,
+                p_data_evento: dataEvento,
+                p_hora_entrega: horaEntrega || null,
+                p_observacoes: observacoes || null,
+                p_frete: frete,
+                p_distancia_km: 0,
+                p_usar_endereco_residencial: usarEnderecoResidencial,
+                p_endereco_evento: usarEnderecoResidencial ? null : enderecoEvento,
+                p_itens: carrinho.map((item) => ({
+                    produto_id: item.produto.id,
+                    quantidade: item.quantidade,
+                    preco_unitario: item.produto.preco_unitario,
+                })),
+                p_pagamento_valor: registrarPagamento ? valorPagamento : 0,
+                p_pagamento_metodo: registrarPagamento ? metodoPagamento : null,
+            })
+            if (error) throw error
+            if (!pedidoId) throw new Error('O banco não retornou o identificador do pedido.')
 
             router.push('/pedidos')
         } catch (error) {
             console.error('Erro ao criar pedido:', error)
-            alert('Erro ao criar pedido. Tente novamente.')
+            const message = error instanceof Error ? error.message : 'Falha inesperada ao criar pedido.'
+            alert(`Não foi possível criar o pedido: ${message}`)
         } finally {
             setSaving(false)
         }

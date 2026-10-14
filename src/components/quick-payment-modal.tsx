@@ -25,8 +25,9 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import type { StatusPedido } from '@/lib/database.types'
+import { noDiscount, type OrderDiscount } from '@/lib/order-discount'
+import { OrderDiscountFields } from '@/components/order-discount-fields'
 
 export interface QuickPaymentPedido {
   id: string
@@ -38,6 +39,10 @@ export interface QuickPaymentPedido {
   } | null
   data_evento?: string
   valor_pago?: number | null
+  desconto_tipo?: OrderDiscount['tipo']
+  desconto_valor?: number | null
+  desconto_escopo?: OrderDiscount['escopo']
+  desconto_produto_id?: string | null
 }
 
 interface QuickPaymentModalProps {
@@ -72,10 +77,11 @@ export function QuickPaymentModal({
   const [dataPagamento, setDataPagamento] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
   const [saving, setSaving] = useState(false)
   const [successAnimation, setSuccessAnimation] = useState(false)
+  const [desconto, setDesconto] = useState<OrderDiscount>(noDiscount)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const totalPedido = Number(pedido?.total_pedido || 0)
-  const saldoDevedor = Math.max(0, totalPedido - valorPagoAtual)
+  const saldoDevedor = totalPedido - valorPagoAtual
   const metadeTotal = Number((totalPedido * 0.5).toFixed(2))
 
   useEffect(() => {
@@ -84,8 +90,14 @@ export function QuickPaymentModal({
       setMetodo('pix')
       setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
       setObservacao(observacaoInicial || '')
+      setDesconto({
+        tipo: pedido.desconto_tipo || null,
+        valor: pedido.desconto_valor ?? null,
+        escopo: pedido.desconto_escopo || null,
+        produtoId: pedido.desconto_produto_id || null,
+      })
 
-      let initialValue = saldoDevedor
+      let initialValue = Math.max(0, saldoDevedor)
       if (valorSugeridoInicial !== undefined && valorSugeridoInicial > 0) {
         initialValue = valorSugeridoInicial
       }
@@ -100,7 +112,7 @@ export function QuickPaymentModal({
         }
       }, 150)
     }
-  }, [open, pedido, valorPagoAtual, valorSugeridoInicial, observacaoInicial, saldoDevedor])
+    }, [open, pedido, valorPagoAtual, valorSugeridoInicial, observacaoInicial, saldoDevedor])
 
   function formatCurrency(val: number) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
@@ -126,23 +138,19 @@ export function QuickPaymentModal({
 
     setSaving(true)
     try {
-      // 1. Insert into pagamentos table
-      const { error: insertError } = await (supabase as any).from('pagamentos').insert({
-        pedido_id: pedido.id,
-        valor: numValor,
-        metodo: metodo,
-        observacao: observacao.trim() || null,
-        data_pagamento: dataPagamento,
+      const { error: insertError } = await supabase.rpc('registrar_pagamento_com_desconto', {
+        p_pedido_id: pedido.id,
+        p_valor: numValor,
+        p_metodo: metodo,
+        p_observacao: observacao.trim() || null,
+        p_data_pagamento: dataPagamento,
+        p_desconto_tipo: desconto.tipo,
+        p_desconto_valor: desconto.valor,
+        p_desconto_escopo: desconto.escopo,
+        p_desconto_produto_id: desconto.produtoId,
       })
 
       if (insertError) throw insertError
-
-      // 2. Keep pedidos.valor_pago in sync
-      const novoTotalPago = Number((valorPagoAtual + numValor).toFixed(2))
-      await supabase
-        .from('pedidos')
-        .update({ valor_pago: novoTotalPago })
-        .eq('id', pedido.id)
 
       // 3. Feedback animation and auto-close
       setSuccessAnimation(true)
@@ -206,14 +214,14 @@ export function QuickPaymentModal({
             </span>
           </div>
           <div className="p-2 rounded-lg bg-background/80 border border-emerald-500/30">
-            <span className="text-[11px] text-muted-foreground block">Restante</span>
-            <span className={`text-xs sm:text-sm font-bold ${saldoDevedor > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              <span className="text-[11px] text-muted-foreground block">Saldo</span>
+              <span className={`text-xs sm:text-sm font-bold ${saldoDevedor > 0 ? 'text-amber-600 dark:text-amber-400' : saldoDevedor < -0.01 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {formatCurrency(saldoDevedor)}
             </span>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Valor Input + Atalhos Rápidos */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -239,7 +247,7 @@ export function QuickPaymentModal({
                   className="h-7 text-xs px-2.5 font-medium border-emerald-500/40 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                   onClick={() => handleSetAmount(saldoDevedor)}
                 >
-                  Quitar Total ({formatCurrency(saldoDevedor)})
+                  Quitar Total ({formatCurrency(Math.max(0, saldoDevedor))})
                 </Button>
               </div>
             </div>
@@ -262,6 +270,8 @@ export function QuickPaymentModal({
               />
             </div>
           </div>
+
+          <OrderDiscountFields pedidoId={pedido.id} value={desconto} onChange={setDesconto} />
 
           {/* Seleção Rápida de Método (1 clique sem dropdown) */}
           <div className="space-y-2">

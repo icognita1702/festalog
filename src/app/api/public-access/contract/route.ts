@@ -34,14 +34,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  const { error: updateError } = await admin
-    .from('pedidos')
-    .update({
-      status: 'assinado',
-      assinatura_url: fileName,
-    })
-    .eq('id', payload.pedido.id)
-    .eq('tenant_id', payload.token.tenant_id)
+  const { error: updateError } = await admin.rpc('assinar_pedido_transacional', {
+    p_pedido_id: payload.pedido.id,
+    p_assinatura_url: fileName,
+    p_tenant_id: payload.token.tenant_id,
+  })
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })

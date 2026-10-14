@@ -168,13 +168,10 @@ export default function ContratoAssinaturaPage() {
             }
 
             // Atualizar pedido
-            const { error: updateError } = await supabase
-                .from('pedidos')
-                .update({
-                    status: 'assinado',
-                    assinatura_url: fileName
-                })
-                .eq('id', pedido.id)
+            const { error: updateError } = await supabase.rpc('assinar_pedido_transacional', {
+                p_pedido_id: pedido.id,
+                p_assinatura_url: fileName,
+            })
 
             if (updateError) throw updateError
 
@@ -302,6 +299,15 @@ export default function ContratoAssinaturaPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        {Number(pedido.total_pedido) <
+                            (pedido.itens_pedido || []).reduce((sum, item) => sum + item.quantidade * item.preco_unitario, 0) + Number(pedido.frete || 0) - 0.01 && (
+                            <div className="mt-4 flex justify-between text-sm text-muted-foreground">
+                                <span>Desconto aplicado</span>
+                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                    Math.max(0, (pedido.itens_pedido || []).reduce((sum, item) => sum + item.quantidade * item.preco_unitario, 0) + Number(pedido.frete || 0) - Number(pedido.total_pedido))
+                                )}</span>
+                            </div>
+                        )}
                         <div className="mt-4 flex justify-between border-t pt-4">
                             <span className="text-lg font-medium">Total</span>
                             <span className="text-xl font-bold text-primary">

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Calendar } from '@/components/ui/calendar'
 import { Overview } from '@/components/dashboard/overview'
 import { TopItems } from '@/components/dashboard/top-items'
@@ -32,12 +33,38 @@ import {
 import { format } from 'date-fns/format'
 import { subMonths } from 'date-fns/subMonths'
 import { startOfMonth } from 'date-fns/startOfMonth'
-import { endOfMonth } from 'date-fns/endOfMonth'
 import { eachMonthOfInterval } from 'date-fns/eachMonthOfInterval'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { PedidoComCliente, StatusPedido } from '@/lib/database.types'
+import { classifyDashboardLoadError, type DashboardLoadError } from '@/lib/dashboard-load-state'
+
+type PedidoWithItems = { itens?: unknown }
+
+class DashboardQueryError extends Error {
+    constructor(
+        readonly status: number,
+        readonly code: string | undefined,
+        message: string,
+    ) {
+        super(message)
+        this.name = 'DashboardQueryError'
+    }
+}
+
+function assertQuerySucceeded(result: {
+    error: { message: string; code?: string } | null
+    status: number
+}, queryName: string) {
+    if (result.error) {
+        throw new DashboardQueryError(
+            result.status,
+            result.error.code,
+            `${queryName}: ${result.error.message}`,
+        )
+    }
+}
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -72,133 +99,162 @@ export default function DashboardPage() {
     })
     const [pedidosRecentes, setPedidosRecentes] = useState<PedidoComCliente[]>([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState<DashboardLoadError | null>(null)
+    const loadingRef = useRef(false)
     const [pedidosPorData, setPedidosPorData] = useState<Record<string, number>>({})
 
     // Novos estados para gráficos
     const [revenueData, setRevenueData] = useState<{ name: string; total: number }[]>([])
     const [topItemsData, setTopItemsData] = useState<{ name: string; quantity: number }[]>([])
 
-    useEffect(() => {
-        async function loadData() {
-            try {
-                const hoje = format(new Date(), 'yyyy-MM-dd')
-                const inicioMes = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
+    const loadData = useCallback(async () => {
+        if (loadingRef.current) return
+        loadingRef.current = true
+        setLoading(true)
 
-                // --- STATS ---
-                const { count: entregasHoje } = await supabase
-                    .from('pedidos')
+        try {
+            if (!navigator.onLine) {
+                setLoadError('offline')
+                return
+            }
+
+            const hoje = format(new Date(), 'yyyy-MM-dd')
+            const inicioMes = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
+            const end = new Date()
+            const start = subMonths(startOfMonth(end), 5)
+            const months = eachMonthOfInterval({ start, end })
+
+            const [
+                entregasResult,
+                pendentesResult,
+                clientesResult,
+                faturamentoResult,
+                pedidosResult,
+                todasDatasResult,
+                pedidosFaturamentoResult,
+                pedidosItensResult,
+            ] = await Promise.all([
+                supabase.from('pedidos')
                     .select('*', { count: 'exact', head: true })
                     .eq('data_evento', hoje)
-                    .not('status', 'eq', 'orcamento')
-
-                const { count: pedidosPendentes } = await supabase
-                    .from('pedidos')
+                    .not('status', 'eq', 'orcamento'),
+                supabase.from('pedidos')
                     .select('*', { count: 'exact', head: true })
-                    .not('status', 'in', '("finalizado","orcamento")')
-
-                const { count: totalClientes } = await supabase
-                    .from('clientes')
-                    .select('*', { count: 'exact', head: true })
-
-                const { data: faturamento } = await supabase
-                    .from('pedidos')
+                    .not('status', 'in', '("finalizado","orcamento")'),
+                supabase.from('clientes')
+                    .select('*', { count: 'exact', head: true }),
+                supabase.from('pedidos')
                     .select('total_pedido')
                     .gte('created_at', inicioMes)
-                    .eq('status', 'finalizado')
-
-                const faturamentoMes = faturamento?.reduce((acc, p) => acc + (p.total_pedido || 0), 0) || 0
-
-                setStats({
-                    entregasHoje: entregasHoje || 0,
-                    pedidosPendentes: pedidosPendentes || 0,
-                    totalClientes: totalClientes || 0,
-                    faturamentoMes,
-                })
-
-                // --- RECENTES ---
-                const { data: pedidos } = await supabase
-                    .from('pedidos')
+                    .eq('status', 'finalizado'),
+                supabase.from('pedidos')
                     .select('*, clientes(*)')
                     .order('created_at', { ascending: false })
-                    .limit(5)
-
-                setPedidosRecentes((pedidos as PedidoComCliente[]) || [])
-
-                // --- CALENDÁRIO ---
-                const { data: todasDatas } = await supabase
-                    .from('pedidos')
+                    .limit(5),
+                supabase.from('pedidos')
                     .select('data_evento')
-                    .not('status', 'eq', 'orcamento')
-
-                if (todasDatas) {
-                    const contagem: Record<string, number> = {}
-                    todasDatas.forEach(p => {
-                        contagem[p.data_evento] = (contagem[p.data_evento] || 0) + 1
-                    })
-                    setPedidosPorData(contagem)
-                }
-
-                // --- GRÁFICO DE FATURAMENTO (Últimos 6 meses) ---
-                const end = new Date()
-                const start = subMonths(startOfMonth(end), 5)
-                const months = eachMonthOfInterval({ start, end })
-
-                // Busca otimizada: agrupar por mês via SQL seria ideal, mas via JS funciona para volumetria baixa
-                const { data: pedidosFaturamento } = await supabase
-                    .from('pedidos')
+                    .not('status', 'eq', 'orcamento'),
+                supabase.from('pedidos')
                     .select('created_at, total_pedido')
                     .gte('created_at', start.toISOString())
-                    .eq('status', 'finalizado')
-
-                const chartData = months.map((month: Date) => {
-                    const monthKey = format(month, 'yyyy-MM')
-                    const total = pedidosFaturamento
-                        ?.filter(p => p.created_at && p.created_at.startsWith(monthKey))
-                        .reduce((acc, p) => acc + (p.total_pedido || 0), 0) || 0
-
-                    return {
-                        name: format(month, 'MMM', { locale: ptBR as any }).toUpperCase(),
-                        total
-                    }
-                })
-                setRevenueData(chartData)
-
-                // --- GRÁFICO TOP ITENS ---
-                // Supabase type workaround: selecionando * para evitar erro estático se 'itens' não estiver no tipo gerado
-                const { data: pedidosItens } = await supabase
-                    .from('pedidos')
+                    .eq('status', 'finalizado'),
+                supabase.from('pedidos')
                     .select('*')
-                    .limit(100)
+                    .limit(100),
+            ])
 
-                const itemCounts: Record<string, number> = {}
-                pedidosItens?.forEach((p: any) => {
-                    if (Array.isArray(p.itens)) {
-                        p.itens.forEach((item: any) => {
-                            // Tenta normalizar nome se for objeto ou string
-                            const nome = typeof item === 'string' ? item : item.nome || JSON.stringify(item)
-                            // Remove quantidades "10x Cadeira" -> "Cadeira" (simplificação)
-                            const cleanName = nome.replace(/^\d+x?\s*/i, '').trim()
-                            itemCounts[cleanName] = (itemCounts[cleanName] || 0) + 1
-                        })
-                    }
+            assertQuerySucceeded(entregasResult, 'Entregas de hoje')
+            assertQuerySucceeded(pendentesResult, 'Pedidos pendentes')
+            assertQuerySucceeded(clientesResult, 'Total de clientes')
+            assertQuerySucceeded(faturamentoResult, 'Faturamento do mês')
+            assertQuerySucceeded(pedidosResult, 'Pedidos recentes')
+            assertQuerySucceeded(todasDatasResult, 'Calendário')
+            assertQuerySucceeded(pedidosFaturamentoResult, 'Gráfico de faturamento')
+            assertQuerySucceeded(pedidosItensResult, 'Itens mais alugados')
+
+            const pedidosRecentes = (pedidosResult.data as PedidoComCliente[] | null) || []
+            const faturamentoMes = faturamentoResult.data?.reduce(
+                (acc, pedido) => acc + (pedido.total_pedido || 0),
+                0,
+            ) || 0
+            const pedidosPorData: Record<string, number> = {}
+            todasDatasResult.data?.forEach((pedido) => {
+                pedidosPorData[pedido.data_evento] = (pedidosPorData[pedido.data_evento] || 0) + 1
+            })
+
+            const revenueData = months.map((month: Date) => {
+                const monthKey = format(month, 'yyyy-MM')
+                const total = pedidosFaturamentoResult.data
+                    ?.filter((pedido) => pedido.created_at && pedido.created_at.startsWith(monthKey))
+                    .reduce((acc, pedido) => acc + (pedido.total_pedido || 0), 0) || 0
+
+                return {
+                    name: format(month, 'MMM', { locale: ptBR }).toUpperCase(),
+                    total,
+                }
+            })
+
+            const itemCounts: Record<string, number> = {}
+            const pedidosWithItems = pedidosItensResult.data as unknown as PedidoWithItems[] | null
+            pedidosWithItems?.forEach((pedido) => {
+                if (!Array.isArray(pedido.itens)) return
+
+                pedido.itens.forEach((item: unknown) => {
+                    const name = typeof item === 'string'
+                        ? item
+                        : item && typeof item === 'object' && 'nome' in item && typeof item.nome === 'string'
+                            ? item.nome
+                            : JSON.stringify(item) ?? String(item)
+                    const cleanName = name.replace(/^\d+x?\s*/i, '').trim()
+                    itemCounts[cleanName] = (itemCounts[cleanName] || 0) + 1
                 })
+            })
 
-                const topItems = Object.entries(itemCounts)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 5)
-                    .map(([name, quantity]) => ({ name: name.length > 20 ? name.slice(0, 20) + '...' : name, quantity }))
+            const topItemsData = Object.entries(itemCounts)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 5)
+                .map(([name, quantity]) => ({
+                    name: name.length > 20 ? `${name.slice(0, 20)}...` : name,
+                    quantity,
+                }))
 
-                setTopItemsData(topItems)
+            setStats({
+                entregasHoje: entregasResult.count || 0,
+                pedidosPendentes: pendentesResult.count || 0,
+                totalClientes: clientesResult.count || 0,
+                faturamentoMes,
+            })
+            setPedidosRecentes(pedidosRecentes)
+            setPedidosPorData(pedidosPorData)
+            setRevenueData(revenueData)
+            setTopItemsData(topItemsData)
+            setLoadError(null)
+        } catch (error) {
+            console.error('Erro ao carregar dados:', error)
+            const status = error instanceof DashboardQueryError
+                ? (error.status === 540 || error.code === '540' ? 540 : error.status)
+                : 0
+            setLoadError(classifyDashboardLoadError(status, navigator.onLine))
+        } finally {
+            loadingRef.current = false
+            setLoading(false)
+        }
+    }, [])
 
-            } catch (error) {
-                console.error('Erro ao carregar dados:', error)
-            } finally {
-                setLoading(false)
-            }
+    useEffect(() => {
+        const retryWhenAvailable = () => {
+            if (navigator.onLine) void loadData()
         }
 
-        loadData()
-    }, [])
+        void loadData()
+        window.addEventListener('online', retryWhenAvailable)
+        window.addEventListener('focus', retryWhenAvailable)
+
+        return () => {
+            window.removeEventListener('online', retryWhenAvailable)
+            window.removeEventListener('focus', retryWhenAvailable)
+        }
+    }, [loadData])
 
     async function handleDateSelect(selectedDate: Date | undefined) {
         setDate(selectedDate)
@@ -258,6 +314,43 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {loadError ? (
+                <Alert variant="destructive">
+                    <AlertTitle>
+                        {loadError === 'paused'
+                            ? 'Banco de dados pausado'
+                            : loadError === 'offline'
+                                ? 'Sem conexão com a internet'
+                                : 'Não foi possível carregar os dados'}
+                    </AlertTitle>
+                    <AlertDescription className="mt-2 flex flex-col items-start gap-3">
+                        <p>
+                            {loadError === 'paused'
+                                ? 'O Supabase informou que o projeto está pausado. Reative-o no painel do Supabase para voltar a acessar os dados.'
+                                : loadError === 'offline'
+                                    ? 'Verifique sua conexão. O FestaLog tentará carregar os dados novamente quando a internet voltar.'
+                                    : 'O serviço de dados não respondeu. Verifique sua conexão ou se o projeto Supabase está ativo e tente novamente.'}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Button onClick={() => void loadData()} disabled={loading} variant="outline">
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                {loading ? 'Tentando...' : 'Tentar novamente'}
+                            </Button>
+                            {loadError === 'paused' ? (
+                                <a
+                                    className="text-sm font-medium underline underline-offset-4"
+                                    href="https://supabase.com/dashboard/projects"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Abrir painel do Supabase
+                                </a>
+                            ) : null}
+                        </div>
+                    </AlertDescription>
+                </Alert>
+            ) : (
+                <>
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card className="hover:shadow-md transition-shadow">
@@ -431,6 +524,9 @@ export default function DashboardPage() {
                 </Card>
             </div>
 
+                </>
+            )}
+
             {/* Popup de Pedidos da Data */}
             <Dialog open={showPopup} onOpenChange={setShowPopup}>
                 <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -479,10 +575,10 @@ export default function DashboardPage() {
                                             <p className="text-lg font-bold text-primary">
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido)}
                                             </p>
-                                            {(pedido as any).hora_entrega && (
+                                            {(pedido as PedidoComCliente & { hora_entrega?: string | null }).hora_entrega && (
                                                 <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
                                                     <Clock className="h-3 w-3" />
-                                                    {(pedido as any).hora_entrega}
+                                                    {(pedido as PedidoComCliente & { hora_entrega?: string | null }).hora_entrega}
                                                 </p>
                                             )}
                                         </div>

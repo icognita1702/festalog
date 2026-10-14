@@ -101,6 +101,9 @@ export default function OrcamentoTemplatePage() {
       `Ola ${pedido.clientes?.nome}!\n\n` +
       `Aqui e da *${company.nomeEmpresa}*.\n` +
       `Seu orcamento esta pronto:\n${url}\n\n` +
+      (pedido.total_pedido < subtotal + Number(pedido.frete || 0) - 0.01
+        ? `Desconto aplicado: ${formatCurrency(Math.max(0, subtotal + Number(pedido.frete || 0) - pedido.total_pedido))}\n`
+        : '') +
       `Total: ${formatCurrency(pedido.total_pedido)}`
 
     window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank')
@@ -213,6 +216,10 @@ export default function OrcamentoTemplatePage() {
                 </span>
                 <span>{formatCurrency(frete)}</span>
               </div>
+              {pedido.total_pedido < subtotal + frete - 0.01 && <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Desconto aplicado</span>
+                <span>{formatCurrency(Math.max(0, subtotal + frete - pedido.total_pedido))}</span>
+              </div>}
               <div className="flex justify-between border-t pt-4 text-xl font-bold">
                 <span>Total</span>
                 <span className="text-primary">{formatCurrency(pedido.total_pedido)}</span>

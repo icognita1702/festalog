@@ -222,42 +222,32 @@ export default function OrcamentoPage() {
                 return
             }
 
-            // Create order with status 'orcamento'
-            const { data: pedido, error: pedidoError } = await supabase
-                .from('pedidos')
-                .insert({
-                    cliente_id: finalClienteId,
-                    data_evento: dataEvento || new Date().toISOString().split('T')[0],
-                    observacoes,
-                    total_pedido: total,
-                    frete: frete,
-                    distancia_km: distanciaKm,
-                    status: 'orcamento'
-                })
-                .select()
-                .single()
-
-            if (pedidoError) throw pedidoError
-
-            // Create order items
-            const itensData = itens.map(item => ({
-                pedido_id: pedido.id,
-                produto_id: item.produto.id,
-                quantidade: item.quantidade,
-                preco_unitario: item.produto.preco_unitario,
-            }))
-
-            const { error: itensError } = await supabase
-                .from('itens_pedido')
-                .insert(itensData)
-
-            if (itensError) throw itensError
+            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_transacional', {
+                p_cliente_id: finalClienteId,
+                p_data_evento: dataEvento || new Date().toISOString().split('T')[0],
+                p_hora_entrega: null,
+                p_observacoes: observacoes || null,
+                p_frete: frete,
+                p_distancia_km: distanciaKm,
+                p_usar_endereco_residencial: true,
+                p_endereco_evento: null,
+                p_itens: itens.map((item) => ({
+                    produto_id: item.produto.id,
+                    quantidade: item.quantidade,
+                    preco_unitario: item.produto.preco_unitario,
+                })),
+                p_pagamento_valor: 0,
+                p_pagamento_metodo: null,
+            })
+            if (error) throw error
+            if (!pedidoId) throw new Error('O banco não retornou o identificador do orçamento.')
 
             // Redirect to budget template
-            router.push(`/templates/orcamento/${pedido.id}`)
+            router.push(`/templates/orcamento/${pedidoId}`)
         } catch (error) {
             console.error('Erro ao salvar orçamento:', error)
-            alert('Erro ao salvar orçamento. Tente novamente.')
+            const message = error instanceof Error ? error.message : 'Falha inesperada ao salvar.'
+            alert(`Não foi possível salvar o orçamento: ${message}`)
         } finally {
             setSaving(false)
         }
