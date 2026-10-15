@@ -395,12 +395,12 @@ function PedidosContent() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-4 flex flex-col gap-2.5 border-t pt-3.5 @[520px]:flex-row @[520px]:items-center @[520px]:justify-between">
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3.5">
                                             <Select
                                                 value={pedido.status}
                                                 onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
                                             >
-                                                <SelectTrigger size="sm" className="h-8 w-full shrink-0 text-xs @sm:w-[155px]">
+                                                <SelectTrigger size="sm" className="h-8 w-auto min-w-[130px] max-w-[170px] shrink-0 px-2.5 text-xs">
                                                     <SelectValue placeholder="Alterar status" />
                                                 </SelectTrigger>
                                                 <SelectContent position="popper" sideOffset={5}>
@@ -415,7 +415,7 @@ function PedidosContent() {
                                                 </SelectContent>
                                             </Select>
 
-                                            <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                                            <div className="flex items-center justify-end gap-1.5 shrink-0">
                                                 {pedidosComContrato.has(pedido.id) && (
                                                     <Button
                                                         type="button"
