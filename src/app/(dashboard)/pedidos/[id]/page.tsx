@@ -34,6 +34,7 @@ import type { PedidoCompleto, StatusPedido, ItemPedido, Produto, Disponibilidade
 import { PaymentSection } from '@/components/payment-section'
 import { QuickPaymentModal } from '@/components/quick-payment-modal'
 import { ContractAttachmentCard } from '@/components/contract-attachment-card'
+import { getInclusiveRentalDays } from '@/lib/rental-period'
 
 const statusColors: Record<StatusPedido, string> = {
     orcamento: 'bg-gray-500',
@@ -103,6 +104,7 @@ export default function PedidoDetalhesPage() {
     const [modoEdicao, setModoEdicao] = useState(false)
     const [salvando, setSalvando] = useState(false)
     const [dataEventoEdit, setDataEventoEdit] = useState('')
+    const [dataFimEventoEdit, setDataFimEventoEdit] = useState('')
     const [horaEntregaEdit, setHoraEntregaEdit] = useState('')
     const [observacoesEdit, setObservacoesEdit] = useState('')
     const [carrinhoEdit, setCarrinhoEdit] = useState<ItemCarrinhoEdit[]>([])
@@ -153,11 +155,11 @@ export default function PedidoDetalhesPage() {
     }
 
     // Verificar disponibilidade para uma data
-    async function checkDisponibilidade(data: string) {
-        if (!data) return
+    async function checkDisponibilidade(inicio: string, fim: string) {
+        if (!inicio || !fim || fim < inicio) return
 
         const { data: disp, error } = await supabase
-            .rpc('calcular_disponibilidade', { data_consulta: data })
+            .rpc('calcular_disponibilidade_periodo', { p_data_inicio: inicio, p_data_fim: fim })
 
         if (error) {
             console.error('Erro ao verificar disponibilidade:', error)
@@ -174,10 +176,12 @@ export default function PedidoDetalhesPage() {
         await loadProdutos()
 
         // Carrega disponibilidade para a data do evento
-        await checkDisponibilidade(pedido.data_evento)
+        const dataFim = pedido.data_fim_evento || pedido.data_evento
+        await checkDisponibilidade(pedido.data_evento, dataFim)
 
         // Preenche campos editáveis
         setDataEventoEdit(pedido.data_evento)
+        setDataFimEventoEdit(dataFim)
         setHoraEntregaEdit((pedido as any).hora_entrega || '14:00')
         setObservacoesEdit(pedido.observacoes || '')
 
@@ -272,11 +276,24 @@ export default function PedidoDetalhesPage() {
     }
 
     // Calcular total do carrinho de edição
-    const totalEdit = carrinhoEdit.reduce((acc, item) => acc + (item.preco_unitario * item.quantidade), 0) + ((pedido as any)?.frete || 0)
+    const diasLocacaoEdit = getInclusiveRentalDays(dataEventoEdit, dataFimEventoEdit)
+    const subtotalEdit = carrinhoEdit.reduce((acc, item) => acc + (item.preco_unitario * item.quantidade), 0) * diasLocacaoEdit
+    const freteEdit = Number(pedido?.frete || 0)
+    const escopoDescontoEdit = pedido?.desconto_escopo === 'produto'
+        ? carrinhoEdit.filter((item) => item.produto.id === pedido.desconto_produto_id).reduce((acc, item) => acc + item.preco_unitario * item.quantidade, 0) * diasLocacaoEdit
+        : subtotalEdit + freteEdit
+    const descontoEdit = !pedido?.desconto_tipo || pedido.desconto_valor === null
+        ? 0
+        : pedido.desconto_tipo === 'percentual'
+            ? escopoDescontoEdit * Number(pedido.desconto_valor) / 100
+            : pedido.desconto_tipo === 'valor'
+                ? Number(pedido.desconto_valor)
+                : Math.max(0, escopoDescontoEdit - Number(pedido.desconto_valor))
+    const totalEdit = Math.max(0, subtotalEdit + freteEdit - descontoEdit)
 
     // Salvar alterações do pedido
     async function salvarEdicao() {
-        if (!pedido || carrinhoEdit.length === 0) {
+        if (!pedido || carrinhoEdit.length === 0 || !dataEventoEdit || !dataFimEventoEdit || dataFimEventoEdit < dataEventoEdit) {
             alert('Adicione pelo menos um produto ao pedido')
             return
         }
@@ -284,9 +301,10 @@ export default function PedidoDetalhesPage() {
         setSalvando(true)
 
         try {
-            const { error } = await supabase.rpc('editar_pedido_transacional', {
+            const { error } = await supabase.rpc('editar_pedido_periodo_transacional', {
                 p_pedido_id: pedidoId,
                 p_data_evento: dataEventoEdit,
+                p_data_fim_evento: dataFimEventoEdit,
                 p_hora_entrega: horaEntregaEdit || null,
                 p_observacoes: observacoesEdit || null,
                 p_usar_endereco_residencial: usarEnderecoResidencialEdit,
@@ -316,10 +334,10 @@ export default function PedidoDetalhesPage() {
 
     // Atualizar disponibilidade quando a data de edição muda
     useEffect(() => {
-        if (modoEdicao && dataEventoEdit && dataEventoEdit !== pedido?.data_evento) {
-            checkDisponibilidade(dataEventoEdit)
+        if (modoEdicao && dataEventoEdit && dataFimEventoEdit && dataFimEventoEdit >= dataEventoEdit) {
+            checkDisponibilidade(dataEventoEdit, dataFimEventoEdit)
         }
-    }, [dataEventoEdit, modoEdicao])
+    }, [dataEventoEdit, dataFimEventoEdit, modoEdicao])
 
     async function updateStatus(newStatus: StatusPedido) {
         const { error } = await supabase.rpc('atualizar_status_pedido_transacional', {
@@ -493,7 +511,7 @@ export default function PedidoDetalhesPage() {
             // TABELA DE ITENS COM VALORES
             page.drawText('Qtd', { x: margin, y, size: 9, font: fontBold })
             page.drawText('Descrição', { x: 85, y, size: 9, font: fontBold })
-            page.drawText('Valor Unit.', { x: 350, y, size: 9, font: fontBold })
+            page.drawText('Valor diário', { x: 350, y, size: 9, font: fontBold })
             page.drawText('Subtotal', { x: 450, y, size: 9, font: fontBold })
             y -= 5
             page.drawLine({ start: { x: margin, y }, end: { x: 545, y }, thickness: 0.5 })
@@ -502,7 +520,7 @@ export default function PedidoDetalhesPage() {
             let subtotalItens = 0
             pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
                 checkNewPage()
-                const subtotalItem = item.quantidade * item.preco_unitario
+                const subtotalItem = item.quantidade * item.preco_unitario * getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)
                 subtotalItens += subtotalItem
                 page.drawText(item.quantidade.toString(), { x: margin, y, size: 9, font })
                 page.drawText(item.produtos?.nome || '', { x: 85, y, size: 9, font })
@@ -543,11 +561,13 @@ export default function PedidoDetalhesPage() {
             page.drawText('Cláusula 3ª: Duração da Locação e Local de Entrega', { x: margin, y, size: 10, font: fontBold })
             y -= lineHeight
             const dataEvento = format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')
+            const dataFimEvento = format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')
+            const diasLocacao = getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)
             const horaEntrega = (pedido as any).hora_entrega || '14:00'
             const [horaH, horaM] = horaEntrega.split(':').map(Number)
             const horaInicio = `${String(Math.max(0, horaH - 1)).padStart(2, '0')}:${String(horaM).padStart(2, '0')}`
             const horaFim = `${String(Math.min(23, horaH + 1)).padStart(2, '0')}:${String(horaM).padStart(2, '0')}`
-            drawWrappedText(`3.1. A locação terá duração de 1 (um) dia, compreendendo o período de utilização dos itens a partir do dia ${dataEvento}, com horário de entrega previsto entre ${horaInicio} e ${horaFim}, até o recolhimento no dia seguinte.`, 10)
+            drawWrappedText(`3.1. A locação terá duração de ${diasLocacao} ${diasLocacao === 1 ? 'dia' : 'dias'}, de ${dataEvento} a ${dataFimEvento}, com horário de entrega previsto entre ${horaInicio} e ${horaFim}.`, 10)
             y -= 5
             drawWrappedText(`3.2. O material será entregue no endereço do evento, localizado em: ${pedido.clientes?.endereco_completo || ''}.`, 10)
             y -= 10
@@ -563,7 +583,7 @@ export default function PedidoDetalhesPage() {
             const valorExtenso = valorTotal // Simplificado
             const valorSinal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.total_pedido * 0.5)
 
-            drawWrappedText(`4.1. O valor do material alugado será de ${valorTotal}.`, 10)
+            drawWrappedText(`4.1. O valor total dos itens pelo período de ${diasLocacao} ${diasLocacao === 1 ? 'diária' : 'diárias'} será de ${valorTotal}.`, 10)
             y -= 5
             drawWrappedText('4.2. Adicionalmente, será cobrado o valor do frete conforme região de entrega.', 10)
             y -= 5
@@ -951,8 +971,8 @@ export default function PedidoDetalhesPage() {
                                             <TableRow>
                                                 <TableHead>Produto</TableHead>
                                                 <TableHead className="text-center">Qtd</TableHead>
-                                                <TableHead className="text-right">Preço Unit.</TableHead>
-                                                <TableHead className="text-right">Subtotal</TableHead>
+                                                <TableHead className="text-right">Preço diário</TableHead>
+                                                <TableHead className="text-right">Subtotal ({diasLocacaoEdit} {diasLocacaoEdit === 1 ? 'diária' : 'diárias'})</TableHead>
                                                 <TableHead></TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -977,7 +997,7 @@ export default function PedidoDetalhesPage() {
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario)}
+                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario * diasLocacaoEdit)}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Button
@@ -1011,8 +1031,8 @@ export default function PedidoDetalhesPage() {
                                             <TableRow>
                                                 <TableHead>Produto</TableHead>
                                                 <TableHead className="text-center">Qtd</TableHead>
-                                                <TableHead className="text-right">Preço Unit.</TableHead>
-                                                <TableHead className="text-right">Subtotal</TableHead>
+                                                <TableHead className="text-right">Preço diário</TableHead>
+                                                <TableHead className="text-right">Subtotal ({getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)} diárias)</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -1024,7 +1044,7 @@ export default function PedidoDetalhesPage() {
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_unitario)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario)}
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.quantidade * item.preco_unitario * getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento))}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -1053,16 +1073,19 @@ export default function PedidoDetalhesPage() {
                             <CardContent className="space-y-4">
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="data">Data do Evento</Label>
-                                        <Input
-                                            id="data"
-                                            type="date"
-                                            value={dataEventoEdit}
-                                            onChange={(e) => setDataEventoEdit(e.target.value)}
-                                        />
+                                        <Label htmlFor="data">Data inicial</Label>
+                                        <Input id="data" type="date" value={dataEventoEdit} onChange={(e) => {
+                                            const inicio = e.target.value
+                                            setDataEventoEdit(inicio)
+                                            if (!dataFimEventoEdit || dataFimEventoEdit < inicio) setDataFimEventoEdit(inicio)
+                                        }} />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="hora">Horário de Entrega</Label>
+                                        <Label htmlFor="data-fim">Data final</Label>
+                                        <Input id="data-fim" type="date" min={dataEventoEdit || undefined} value={dataFimEventoEdit} onChange={(e) => setDataFimEventoEdit(e.target.value)} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                <Label htmlFor="hora">Horário de Entrega</Label>
                                         <Input
                                             id="hora"
                                             type="time"
@@ -1210,15 +1233,15 @@ export default function PedidoDetalhesPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Calendar className="h-5 w-5" />
-                                Data do Evento
+                                Período do Evento
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold">
-                                {format(new Date(pedido.data_evento + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                                {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} – {format(new Date(((pedido as any).data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}
                             </p>
                             <p className="text-muted-foreground">
-                                {format(new Date(pedido.data_evento + 'T12:00:00'), 'yyyy')}
+                                {getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)} {getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento) === 1 ? 'diária' : 'diárias'}
                             </p>
                         </CardContent>
                     </Card>

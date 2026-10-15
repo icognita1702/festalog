@@ -27,6 +27,7 @@ import { ArrowLeft, Plus, Trash2, Loader2, Calculator, Share2, FileText, Truck, 
 import { supabase } from '@/lib/supabase'
 import type { Cliente, Produto, DisponibilidadeProduto } from '@/lib/database.types'
 import { calculateFreightForAddress, getDefaultFreightConfig, type FreightConfig } from '@/lib/freight-calculator'
+import { getInclusiveRentalDays } from '@/lib/rental-period'
 
 interface ItemOrcamento {
     produto: Produto
@@ -50,6 +51,7 @@ export default function OrcamentoPage() {
     const [novoClienteEndereco, setNovoClienteEndereco] = useState('')
     const [modoNovoCliente, setModoNovoCliente] = useState(false)
     const [dataEvento, setDataEvento] = useState('')
+    const [dataFimEvento, setDataFimEvento] = useState('')
     const [observacoes, setObservacoes] = useState('')
     const [itens, setItens] = useState<ItemOrcamento[]>([])
     const [produtoSelecionado, setProdutoSelecionado] = useState('')
@@ -83,11 +85,11 @@ export default function OrcamentoPage() {
         setLoading(false)
     }
 
-    async function checkDisponibilidade(data: string) {
-        if (!data) return
+    async function checkDisponibilidade(inicio: string, fim: string) {
+        if (!inicio || !fim || fim < inicio) return
 
         const { data: disp } = await supabase
-            .rpc('calcular_disponibilidade', { data_consulta: data })
+            .rpc('calcular_disponibilidade_periodo', { p_data_inicio: inicio, p_data_fim: fim })
 
         if (disp) setDisponibilidade(disp)
     }
@@ -97,11 +99,10 @@ export default function OrcamentoPage() {
     }, [])
 
     useEffect(() => {
-        if (dataEvento) {
-            checkDisponibilidade(dataEvento)
-            setItens([]) // Clear cart on date change
+        if (dataEvento && dataFimEvento && dataFimEvento >= dataEvento) {
+            checkDisponibilidade(dataEvento, dataFimEvento)
         }
-    }, [dataEvento])
+    }, [dataEvento, dataFimEvento])
 
     // Calculate freight when client is selected
     useEffect(() => {
@@ -186,10 +187,16 @@ export default function OrcamentoPage() {
         setItens(newItens)
     }
 
-    const subtotal = itens.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const diasLocacao = getInclusiveRentalDays(dataEvento, dataFimEvento)
+    const subtotalDiario = itens.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const subtotal = subtotalDiario * diasLocacao
     const total = subtotal + frete
 
     async function handleSaveOrcamento() {
+        if (dataEvento && (!dataFimEvento || dataFimEvento < dataEvento)) {
+            alert('A data final não pode ser anterior à data inicial.')
+            return
+        }
         if (itens.length === 0) {
             alert('Adicione pelo menos um produto')
             return
@@ -222,9 +229,10 @@ export default function OrcamentoPage() {
                 return
             }
 
-            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_transacional', {
+            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_periodo_transacional', {
                 p_cliente_id: finalClienteId,
                 p_data_evento: dataEvento || new Date().toISOString().split('T')[0],
+                p_data_fim_evento: dataFimEvento || dataEvento || new Date().toISOString().split('T')[0],
                 p_hora_entrega: null,
                 p_observacoes: observacoes || null,
                 p_frete: frete,
@@ -262,7 +270,7 @@ export default function OrcamentoPage() {
         msg += `📋 *Itens:*\n`
 
         itens.forEach(item => {
-            msg += `• ${item.quantidade}x ${item.produto.nome} - ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade)}\n`
+            msg += `• ${item.quantidade}x ${item.produto.nome} - ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade * diasLocacao)}\n`
         })
 
         msg += `\n📦 Subtotal: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}`
@@ -270,7 +278,7 @@ export default function OrcamentoPage() {
         msg += `\n\n💰 *Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}*`
 
         if (dataEvento) {
-            msg += `\n\n📅 Data do evento: ${new Date(dataEvento + 'T12:00:00').toLocaleDateString('pt-BR')}`
+            msg += `\n\n📅 Período: ${new Date(dataEvento + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date((dataFimEvento || dataEvento) + 'T12:00:00').toLocaleDateString('pt-BR')} (${diasLocacao} ${diasLocacao === 1 ? 'diária' : 'diárias'})`
         }
 
         msg += `\n\n_Orçamento válido por 7 dias_`
@@ -384,16 +392,25 @@ export default function OrcamentoPage() {
                     {/* Event Date */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Data do Evento</CardTitle>
-                            <CardDescription>Opcional - para verificar disponibilidade</CardDescription>
+                            <CardTitle>Período da Locação</CardTitle>
+                            <CardDescription>Opcional - as datas inicial e final são inclusivas</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Input
-                                type="date"
-                                value={dataEvento}
-                                onChange={(e) => setDataEvento(e.target.value)}
-                                min={new Date().toISOString().split('T')[0]}
-                            />
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="data-inicio">Data inicial</Label>
+                                    <Input id="data-inicio" type="date" value={dataEvento} onChange={(e) => {
+                                        const inicio = e.target.value
+                                        setDataEvento(inicio)
+                                        if (!inicio) setDataFimEvento('')
+                                        else if (!dataFimEvento || dataFimEvento < inicio) setDataFimEvento(inicio)
+                                    }} min={new Date().toISOString().split('T')[0]} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="data-fim">Data final</Label>
+                                    <Input id="data-fim" type="date" value={dataFimEvento} onChange={(e) => setDataFimEvento(e.target.value)} min={dataEvento || new Date().toISOString().split('T')[0]} />
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -403,7 +420,7 @@ export default function OrcamentoPage() {
                             <CardTitle>Produtos</CardTitle>
                             <CardDescription>
                                 Adicione produtos ao orçamento
-                                {dataEvento && ` (disponibilidade para ${new Date(dataEvento + 'T12:00:00').toLocaleDateString('pt-BR')})`}
+                                {dataEvento && ` (disponibilidade para todo o período · ${diasLocacao} ${diasLocacao === 1 ? 'diária' : 'diárias'})`}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -451,7 +468,7 @@ export default function OrcamentoPage() {
                                                 <TableHead>Produto</TableHead>
                                                 <TableHead className="text-center">Qtd</TableHead>
                                                 <TableHead className="text-right">Preço Unit.</TableHead>
-                                                <TableHead className="text-right">Subtotal</TableHead>
+                                                    <TableHead className="text-right">Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</TableHead>
                                                 <TableHead></TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -472,7 +489,7 @@ export default function OrcamentoPage() {
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade)}
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade * diasLocacao)}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Button
@@ -531,7 +548,7 @@ export default function OrcamentoPage() {
                                             <div key={item.produto.id} className="flex justify-between text-sm">
                                                 <span>{item.quantidade}x {item.produto.nome}</span>
                                                 <span className="font-medium">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade)}
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade * diasLocacao)}
                                                 </span>
                                             </div>
                                         ))}
@@ -539,7 +556,7 @@ export default function OrcamentoPage() {
 
                                     <div className="border-t pt-4 space-y-2">
                                         <div className="flex justify-between text-sm">
-                                            <span>Subtotal</span>
+                                            <span>Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</span>
                                             <span>
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}
                                             </span>

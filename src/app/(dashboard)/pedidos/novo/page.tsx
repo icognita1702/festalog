@@ -31,6 +31,7 @@ import { ConversationImportDialog } from '@/components/conversation-import-dialo
 import type { ExtractionResult } from '@/lib/conversation-analyzer'
 import { calculateFreightForAddress, getDefaultFreightConfig, type FreightConfig } from '@/lib/freight-calculator'
 import { AddressAutocomplete } from '@/components/address-autocomplete'
+import { getInclusiveRentalDays } from '@/lib/rental-period'
 
 interface ItemCarrinho {
     produto: Produto
@@ -49,6 +50,7 @@ export default function NovoPedidoPage() {
 
     const [clienteId, setClienteId] = useState('')
     const [dataEvento, setDataEvento] = useState('')
+    const [dataFimEvento, setDataFimEvento] = useState('')
     const [horaEntrega, setHoraEntrega] = useState('14:00')
     const [observacoes, setObservacoes] = useState('')
     const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([])
@@ -97,11 +99,11 @@ export default function NovoPedidoPage() {
         setLoading(false)
     }
 
-    async function checkDisponibilidade(data: string) {
-        if (!data) return
+    async function checkDisponibilidade(inicio: string, fim: string) {
+        if (!inicio || !fim || fim < inicio) return
 
         const { data: disp, error } = await supabase
-            .rpc('calcular_disponibilidade', { data_consulta: data })
+            .rpc('calcular_disponibilidade_periodo', { p_data_inicio: inicio, p_data_fim: fim })
 
         if (error) {
             console.error('Erro ao verificar disponibilidade:', error)
@@ -115,12 +117,10 @@ export default function NovoPedidoPage() {
     }, [])
 
     useEffect(() => {
-        if (dataEvento) {
-            checkDisponibilidade(dataEvento)
-            // Limpa carrinho ao mudar data
-            setCarrinho([])
+        if (dataEvento && dataFimEvento && dataFimEvento >= dataEvento) {
+            checkDisponibilidade(dataEvento, dataFimEvento)
         }
-    }, [dataEvento])
+    }, [dataEvento, dataFimEvento])
 
     // Atualiza frete quando tipo muda
     useEffect(() => {
@@ -185,13 +185,19 @@ export default function NovoPedidoPage() {
         setCarrinho(newCarrinho)
     }
 
-    const subtotal = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const diasLocacao = getInclusiveRentalDays(dataEvento, dataFimEvento)
+    const subtotalDiario = carrinho.reduce((acc, item) => acc + (item.produto.preco_unitario * item.quantidade), 0)
+    const subtotal = subtotalDiario * diasLocacao
     const total = subtotal + frete
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
 
-        if (!clienteId || !dataEvento || carrinho.length === 0) {
+        if (dataFimEvento < dataEvento) {
+            alert('A data final não pode ser anterior à data inicial.')
+            return
+        }
+        if (!clienteId || !dataEvento || !dataFimEvento || carrinho.length === 0) {
             alert('Preencha todos os campos e adicione pelo menos um produto')
             return
         }
@@ -199,9 +205,10 @@ export default function NovoPedidoPage() {
         setSaving(true)
 
         try {
-            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_transacional', {
+            const { data: pedidoId, error } = await supabase.rpc('criar_pedido_periodo_transacional', {
                 p_cliente_id: clienteId,
                 p_data_evento: dataEvento,
+                p_data_fim_evento: dataFimEvento,
                 p_hora_entrega: horaEntrega || null,
                 p_observacoes: observacoes || null,
                 p_frete: frete,
@@ -244,6 +251,7 @@ export default function NovoPedidoPage() {
         // Preenche data do evento
         if (result.pedido.data_evento) {
             setDataEvento(result.pedido.data_evento)
+            setDataFimEvento(result.pedido.data_evento)
         }
 
         // Preenche hora de entrega
@@ -411,14 +419,17 @@ export default function NovoPedidoPage() {
                                     )}
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="data">Data do Evento *</Label>
-                                    <Input
-                                        id="data"
-                                        type="date"
-                                        value={dataEvento}
-                                        onChange={(e) => setDataEvento(e.target.value)}
-                                        required
-                                    />
+                                    <Label htmlFor="data">Data inicial *</Label>
+                                    <Input id="data" type="date" value={dataEvento} onChange={(e) => {
+                                        const inicio = e.target.value
+                                        setDataEvento(inicio)
+                                        if (!inicio) setDataFimEvento('')
+                                        else if (!dataFimEvento || dataFimEvento < inicio) setDataFimEvento(inicio)
+                                    }} required />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="data-fim">Data final *</Label>
+                                    <Input id="data-fim" type="date" min={dataEvento || undefined} value={dataFimEvento} onChange={(e) => setDataFimEvento(e.target.value)} required />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="hora">Horário de Entrega *</Label>
@@ -562,8 +573,8 @@ export default function NovoPedidoPage() {
                                                 <TableRow>
                                                     <TableHead>Produto</TableHead>
                                                     <TableHead className="text-center">Qtd</TableHead>
-                                                    <TableHead className="text-right">Preço Unit.</TableHead>
-                                                    <TableHead className="text-right">Subtotal</TableHead>
+                                                    <TableHead className="text-right">Preço diário</TableHead>
+                                                    <TableHead className="text-right">Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</TableHead>
                                                     <TableHead></TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -585,7 +596,7 @@ export default function NovoPedidoPage() {
                                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario)}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium">
-                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade)}
+                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade * diasLocacao)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Button
@@ -620,9 +631,9 @@ export default function NovoPedidoPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {carrinho.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground">
                                     {dataEvento
-                                        ? 'Adicione produtos ao pedido'
+                                        ? `Adicione produtos ao pedido · ${diasLocacao} ${diasLocacao === 1 ? 'diária' : 'diárias'}`
                                         : 'Selecione a data do evento primeiro'}
                                 </p>
                             ) : (
@@ -632,7 +643,7 @@ export default function NovoPedidoPage() {
                                             <div key={item.produto.id} className="flex justify-between text-sm">
                                                 <span>{item.quantidade}x {item.produto.nome}</span>
                                                 <span className="font-medium">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade)}
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.produto.preco_unitario * item.quantidade * diasLocacao)}
                                                 </span>
                                             </div>
                                         ))}
@@ -641,7 +652,7 @@ export default function NovoPedidoPage() {
                                     {/* Subtotal */}
                                     <div className="border-t pt-4 space-y-2">
                                         <div className="flex justify-between text-sm">
-                                            <span>Subtotal</span>
+                                            <span>Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</span>
                                             <span>
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}
                                             </span>

@@ -152,7 +152,7 @@ export default function DashboardPage() {
                     .order('created_at', { ascending: false })
                     .limit(5),
                 supabase.from('pedidos')
-                    .select('data_evento')
+                    .select('data_evento, data_fim_evento')
                     .not('status', 'eq', 'orcamento'),
                 supabase.from('pedidos')
                     .select('created_at, total_pedido')
@@ -179,7 +179,12 @@ export default function DashboardPage() {
             ) || 0
             const pedidosPorData: Record<string, number> = {}
             todasDatasResult.data?.forEach((pedido) => {
-                pedidosPorData[pedido.data_evento] = (pedidosPorData[pedido.data_evento] || 0) + 1
+                const inicio = new Date(pedido.data_evento + 'T12:00:00')
+                const fim = new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00')
+                for (const dia = new Date(inicio); dia <= fim; dia.setDate(dia.getDate() + 1)) {
+                    const chave = format(dia, 'yyyy-MM-dd')
+                    pedidosPorData[chave] = (pedidosPorData[chave] || 0) + 1
+                }
             })
 
             const revenueData = months.map((month: Date) => {
@@ -266,7 +271,8 @@ export default function DashboardPage() {
             const { data, error } = await supabase
                 .from('pedidos')
                 .select('*, clientes(*)')
-                .eq('data_evento', dataFormatada)
+                .lte('data_evento', dataFormatada)
+                .gte('data_fim_evento', dataFormatada)
                 .order('hora_entrega', { ascending: true })
 
             if (!error && data) {
@@ -480,7 +486,8 @@ export default function DashboardPage() {
                                             <div className="min-w-0">
                                                 <p className="truncate font-medium">{pedido.clientes?.nome || 'Cliente'}</p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {format(new Date(pedido.data_evento), "dd/MM/yyyy")}
+                                                    {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')}
+                                                    {(pedido.data_fim_evento || pedido.data_evento) !== pedido.data_evento && ` – ${format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}`}
                                                 </p>
                                             </div>
                                         </div>

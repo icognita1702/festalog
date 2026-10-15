@@ -115,7 +115,7 @@ function PedidosContent() {
         }
 
         if (dataFilter) {
-            query = query.eq('data_evento', dataFilter)
+            query = query.lte('data_evento', dataFilter).gte('data_fim_evento', dataFilter)
         }
 
         const { data, error } = await query
@@ -333,7 +333,7 @@ function PedidosContent() {
                                     return (
                                         <div
                                             key={pedido.id}
-                                            className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                                            className="@container rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                                         >
                                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="min-w-0 space-y-2">
@@ -373,6 +373,7 @@ function PedidosContent() {
                                                     <span className="inline-flex items-center gap-1">
                                                         <Calendar className="h-3.5 w-3.5" />
                                                         {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')}
+                                                        {(pedido.data_fim_evento || pedido.data_evento) !== pedido.data_evento && ` – ${format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}`}
                                                     </span>
                                                     <button
                                                         type="button"
@@ -394,12 +395,12 @@ function PedidosContent() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="mt-4 flex flex-col gap-2.5 border-t pt-3.5 @[520px]:flex-row @[520px]:items-center @[520px]:justify-between">
                                             <Select
                                                 value={pedido.status}
                                                 onValueChange={(value: StatusPedido) => updateStatus(pedido.id, value)}
                                             >
-                                                <SelectTrigger className="w-full sm:w-[180px]">
+                                                <SelectTrigger size="sm" className="h-8 w-full shrink-0 text-xs @sm:w-[155px]">
                                                     <SelectValue placeholder="Alterar status" />
                                                 </SelectTrigger>
                                                 <SelectContent position="popper" sideOffset={5}>
@@ -414,18 +415,18 @@ function PedidosContent() {
                                                 </SelectContent>
                                             </Select>
 
-                                            <div className="flex flex-wrap items-center gap-2">
+                                            <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
                                                 {pedidosComContrato.has(pedido.id) && (
                                                     <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => openContrato(pedido.id)}
-                                                        className="border-blue-300 text-blue-700 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                                        className="h-8 border-blue-300 text-blue-700 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 text-xs px-2.5"
                                                         title="Visualizar contrato anexado em PDF"
                                                     >
-                                                        <FileText className="mr-1.5 h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                                        Contrato
+                                                        <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                                        <span>Contrato</span>
                                                     </Button>
                                                 )}
                                                 <Button
@@ -433,22 +434,22 @@ function PedidosContent() {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() => openQuickPayment(pedido)}
-                                                    className="border-emerald-500/40 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                                                    className="h-8 border-emerald-500/40 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 text-xs px-2.5"
                                                     title="Registrar pagamento rápido"
                                                 >
-                                                    <CircleDollarSign className="mr-1.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                                    Registrar Pgto
+                                                    <CircleDollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>Registrar Pgto</span>
                                                 </Button>
-                                                <Button asChild variant="outline" size="sm">
+                                                <Button asChild variant="outline" size="sm" className="h-8 text-xs px-2.5">
                                                     <Link href={`/pedidos/${pedido.id}?editar=true`}>
-                                                        <Pencil className="mr-2 h-4 w-4" />
-                                                        Editar
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                        <span>Editar</span>
                                                     </Link>
                                                 </Button>
-                                                <Button asChild size="sm">
+                                                <Button asChild size="sm" className="h-8 text-xs px-2.5">
                                                     <Link href={`/pedidos/${pedido.id}`}>
-                                                        <Eye className="mr-2 h-4 w-4" />
-                                                        Ver
+                                                        <Eye className="h-3.5 w-3.5" />
+                                                        <span>Ver</span>
                                                     </Link>
                                                 </Button>
                                             </div>

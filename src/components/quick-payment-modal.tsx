@@ -38,6 +38,7 @@ export interface QuickPaymentPedido {
     whatsapp?: string | null
   } | null
   data_evento?: string
+  data_fim_evento?: string
   valor_pago?: number | null
   desconto_tipo?: OrderDiscount['tipo']
   desconto_valor?: number | null
@@ -190,7 +191,7 @@ export function QuickPaymentModal({
               {pedido.data_evento && (
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  Evento: {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')}
+                  Evento: {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} – {format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}
                 </span>
               )}
               <span className="inline-flex items-center gap-1">

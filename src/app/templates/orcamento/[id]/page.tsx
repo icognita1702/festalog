@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import { getCompanyProfile } from '@/lib/company'
+import { getInclusiveRentalDays } from '@/lib/rental-period'
 import { useTenantConfig } from '@/hooks/use-tenant-config'
 import type { ItemPedido, PedidoCompleto, Produto } from '@/lib/database.types'
 import { Button } from '@/components/ui/button'
@@ -104,6 +105,7 @@ export default function OrcamentoTemplatePage() {
       (pedido.total_pedido < subtotal + Number(pedido.frete || 0) - 0.01
         ? `Desconto aplicado: ${formatCurrency(Math.max(0, subtotal + Number(pedido.frete || 0) - pedido.total_pedido))}\n`
         : '') +
+      `Periodo: ${format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} a ${format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')} (${diasLocacao} ${diasLocacao === 1 ? 'diaria' : 'diarias'})\n` +
       `Total: ${formatCurrency(pedido.total_pedido)}`
 
     window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank')
@@ -132,9 +134,10 @@ export default function OrcamentoTemplatePage() {
     )
   }
 
+  const diasLocacao = getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)
   const subtotal =
-    pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) ||
-    0
+    (pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) ||
+    0) * diasLocacao
   const frete = Number(pedido.frete || 0)
 
   return (
@@ -171,10 +174,10 @@ export default function OrcamentoTemplatePage() {
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-primary" />
-              <span className="font-medium">Data do evento</span>
+              <span className="font-medium">Período da locação · {diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'}</span>
             </div>
             <Badge variant="outline" className="px-4 py-1 text-lg">
-              {format(new Date(pedido.data_evento + 'T12:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} – {format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}
             </Badge>
           </CardContent>
         </Card>
@@ -189,8 +192,8 @@ export default function OrcamentoTemplatePage() {
                 <TableRow>
                   <TableHead>Produto</TableHead>
                   <TableHead className="text-center">Qtd</TableHead>
-                  <TableHead className="text-right">Preco unit.</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="text-right">Preço diário</TableHead>
+                  <TableHead className="text-right">Subtotal ({diasLocacao} diárias)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,14 +202,14 @@ export default function OrcamentoTemplatePage() {
                     <TableCell>{item.produtos?.nome}</TableCell>
                     <TableCell className="text-center">{item.quantidade}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.preco_unitario)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(item.quantidade * item.preco_unitario)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(item.quantidade * item.preco_unitario * diasLocacao)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
             <div className="mt-6 space-y-2 border-t pt-4">
               <div className="flex justify-between text-sm">
-                <span>Subtotal</span>
+                <span>Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">

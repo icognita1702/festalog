@@ -52,11 +52,11 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     return {
       title: 'Entrar',
-      description: 'Acesse sua locadora com autenticação por sessão.',
+      description: 'Entre com seu usuário e senha.',
       submitLabel: 'Entrar',
-      switchLabel: 'Ainda não tem conta?',
+      switchLabel: '',
       switchHref: '/signup',
-      switchCta: 'Criar conta',
+      switchCta: '',
     }
   }, [mode])
 
@@ -95,8 +95,10 @@ export function AuthForm({ mode }: AuthFormProps) {
           return
         }
       } else {
+        const identifier = email.trim().toLowerCase()
+        const loginEmail = identifier.includes('@') ? identifier : `${identifier}@festalog.local`
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
+          email: loginEmail,
           password,
         })
 
@@ -138,15 +140,16 @@ export function AuthForm({ mode }: AuthFormProps) {
           ) : null}
 
           <div className="grid gap-2">
-            <Label htmlFor="email">E-mail</Label>
+            <Label htmlFor="email">{mode === 'login' ? 'Usuário' : 'E-mail'}</Label>
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="email"
-                type="email"
+                type={mode === 'login' ? 'text' : 'email'}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="voce@empresa.com"
+                placeholder={mode === 'login' ? 'gabriel2026' : 'voce@empresa.com'}
+                autoComplete={mode === 'login' ? 'username' : 'email'}
                 className="pl-9"
                 required
               />
@@ -188,12 +191,14 @@ export function AuthForm({ mode }: AuthFormProps) {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {content.switchLabel}{' '}
-          <Link href={content.switchHref} className="font-medium text-primary hover:underline">
-            {content.switchCta}
-          </Link>
-        </p>
+        {mode === 'signup' ? (
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {content.switchLabel}{' '}
+            <Link href={content.switchHref} className="font-medium text-primary hover:underline">
+              {content.switchCta}
+            </Link>
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )

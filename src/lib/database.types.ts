@@ -380,6 +380,7 @@ export interface Database {
           tenant_id: string
           cliente_id: string
           data_evento: string
+          data_fim_evento: string
           hora_entrega: string | null
           status: StatusPedido
           total_pedido: number
@@ -405,6 +406,7 @@ export interface Database {
           tenant_id?: string
           cliente_id: string
           data_evento: string
+          data_fim_evento?: string
           hora_entrega?: string | null
           status?: StatusPedido
           total_pedido?: number
@@ -430,6 +432,7 @@ export interface Database {
           tenant_id?: string
           cliente_id?: string
           data_evento?: string
+          data_fim_evento?: string
           hora_entrega?: string | null
           status?: StatusPedido
           total_pedido?: number
@@ -673,6 +676,16 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
+      calcular_disponibilidade_periodo: {
+        Args: { p_data_inicio: string; p_data_fim: string }
+        Returns: {
+          produto_id: string
+          nome: string
+          quantidade_total: number
+          quantidade_reservada: number
+          quantidade_disponivel: number
+        }[]
+      }
       calcular_disponibilidade: {
         Args: {
           data_consulta: string
@@ -697,10 +710,40 @@ export interface Database {
         }
         Returns: number
       }
+      editar_pedido_periodo_transacional: {
+        Args: {
+          p_pedido_id: string
+          p_data_evento: string
+          p_data_fim_evento: string
+          p_hora_entrega: string | null
+          p_observacoes: string | null
+          p_usar_endereco_residencial: boolean
+          p_endereco_evento: string | null
+          p_itens: Json
+        }
+        Returns: number
+      }
       criar_pedido_transacional: {
         Args: {
           p_cliente_id: string
           p_data_evento: string
+          p_hora_entrega: string | null
+          p_observacoes: string | null
+          p_frete: number
+          p_distancia_km: number
+          p_usar_endereco_residencial: boolean
+          p_endereco_evento: string | null
+          p_itens: Json
+          p_pagamento_valor?: number
+          p_pagamento_metodo?: string | null
+        }
+        Returns: string
+      }
+      criar_pedido_periodo_transacional: {
+        Args: {
+          p_cliente_id: string
+          p_data_evento: string
+          p_data_fim_evento: string
           p_hora_entrega: string | null
           p_observacoes: string | null
           p_frete: number

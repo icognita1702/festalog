@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { getCompanyProfile } from '@/lib/company'
+import { getInclusiveRentalDays } from '@/lib/rental-period'
 import type { Configuracao, ItemPedido, PedidoCompleto, Produto } from '@/lib/database.types'
 
 type ItemPedidoComProduto = ItemPedido & { produtos: Produto | null }
@@ -74,17 +75,18 @@ export default function PublicBudgetPage() {
 
     const pedido = data.pedido
     const company = getCompanyProfile(data.configuracao)
+    const diasLocacao = getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)
     const subtotal =
-      pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) ||
-      0
+      (pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) || 0) * diasLocacao
     const frete = Number(pedido.frete || 0)
 
     let message = `Orcamento - ${company.nomeEmpresa}\n\n`
     message += `Ola ${pedido.clientes?.nome}!\n\n`
     message += `Itens:\n`
     pedido.itens_pedido?.forEach((item: ItemPedidoComProduto) => {
-      message += `- ${item.quantidade}x ${item.produtos?.nome} - ${formatCurrency(item.quantidade * item.preco_unitario)}\n`
+      message += `- ${item.quantidade}x ${item.produtos?.nome} - ${formatCurrency(item.quantidade * item.preco_unitario * diasLocacao)}\n`
     })
+    message += `\nPeriodo: ${format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} a ${format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')} (${diasLocacao} ${diasLocacao === 1 ? 'diaria' : 'diarias'})`
     message += `\nSubtotal: ${formatCurrency(subtotal)}`
     message += `\nFrete: ${formatCurrency(frete)}`
     if (pedido.total_pedido < subtotal + frete - 0.01) {
@@ -121,9 +123,9 @@ export default function PublicBudgetPage() {
 
   const company = getCompanyProfile(data.configuracao)
   const pedido = data.pedido
+  const diasLocacao = getInclusiveRentalDays(pedido.data_evento, pedido.data_fim_evento)
   const subtotal =
-    pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) ||
-    0
+    (pedido.itens_pedido?.reduce((acc, item: ItemPedidoComProduto) => acc + item.quantidade * item.preco_unitario, 0) || 0) * diasLocacao
   const frete = Number(pedido.frete || 0)
 
   return (
@@ -168,10 +170,10 @@ export default function PublicBudgetPage() {
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-primary" />
-              <span className="font-medium">Data do evento</span>
+              <span className="font-medium">Período da locação · {diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'}</span>
             </div>
             <Badge variant="outline" className="px-4 py-1 text-lg">
-              {format(new Date(pedido.data_evento + 'T12:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              {format(new Date(pedido.data_evento + 'T12:00:00'), 'dd/MM/yyyy')} – {format(new Date((pedido.data_fim_evento || pedido.data_evento) + 'T12:00:00'), 'dd/MM/yyyy')}
             </Badge>
           </CardContent>
         </Card>
@@ -186,8 +188,8 @@ export default function PublicBudgetPage() {
                 <TableRow>
                   <TableHead>Produto</TableHead>
                   <TableHead className="text-center">Qtd</TableHead>
-                  <TableHead className="text-right">Preco unit.</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="text-right">Preço diário</TableHead>
+                  <TableHead className="text-right">Subtotal ({diasLocacao} diárias)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -197,7 +199,7 @@ export default function PublicBudgetPage() {
                     <TableCell className="text-center">{item.quantidade}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.preco_unitario)}</TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(item.quantidade * item.preco_unitario)}
+                      {formatCurrency(item.quantidade * item.preco_unitario * diasLocacao)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -206,7 +208,7 @@ export default function PublicBudgetPage() {
 
             <div className="mt-6 space-y-2 border-t pt-4">
               <div className="flex justify-between text-sm">
-                <span>Subtotal</span>
+                <span>Subtotal ({diasLocacao} {diasLocacao === 1 ? 'diária' : 'diárias'})</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">

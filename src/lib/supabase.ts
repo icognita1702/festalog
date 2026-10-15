@@ -1,4 +1,5 @@
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient as createSupabaseBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
 export type TypedSupabaseClient = SupabaseClient<Database>
@@ -21,7 +22,9 @@ function getPublicSupabaseEnv() {
 export function createBrowserClient(): TypedSupabaseClient {
   const { url, anonKey } = getPublicSupabaseEnv()
 
-  return createSupabaseClient<Database>(
+  // Use the SSR browser client so the session is stored in cookies that the
+  // middleware and server components can read after sign-in.
+  return createSupabaseBrowserClient<Database>(
     url,
     anonKey
   )
