@@ -197,7 +197,7 @@ export default function PedidoDetalhesPage() {
                 produto: item.produtos,
                 quantidade: item.quantidade,
                 preco_unitario: item.preco_unitario,
-                disponivel: item.quantidade + getDisponivel(item.produtos.id),
+                disponivel: item.quantidade + getDisponivel(item.produtos.id, item.produtos.quantidade_total),
                 isNew: false
             }))
         setCarrinhoEdit(itensEdit)
@@ -214,9 +214,16 @@ export default function PedidoDetalhesPage() {
     }
 
     // Obter quantidade disponível de um produto
-    function getDisponivel(produtoId: string): number {
+    function getDisponivel(produtoId: string, quantidadeTotalFallback?: number): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
-        return item ? Number(item.quantidade_disponivel) : 0
+        if (item) {
+            return Number(item.quantidade_disponivel)
+        }
+        if (typeof quantidadeTotalFallback === 'number') {
+            return quantidadeTotalFallback
+        }
+        const produto = produtos.find(p => p.id === produtoId)
+        return produto ? produto.quantidade_total : 0
     }
 
     // Adicionar produto ao carrinho de edição
@@ -226,7 +233,7 @@ export default function PedidoDetalhesPage() {
         const produto = produtos.find(p => p.id === produtoSelecionado)
         if (!produto) return
 
-        const disponivel = getDisponivel(produtoSelecionado)
+        const disponivel = getDisponivel(produtoSelecionado, produto.quantidade_total)
 
         // Verifica se já está no carrinho
         const existingIndex = carrinhoEdit.findIndex(item => item.produto.id === produtoSelecionado)
@@ -938,7 +945,7 @@ export default function PedidoDetalhesPage() {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {produtos.map((produto) => {
-                                                    const disp = getDisponivel(produto.id)
+                                                    const disp = getDisponivel(produto.id, produto.quantidade_total)
                                                     const jaNoCarrinho = carrinhoEdit.some(item => item.produto.id === produto.id)
                                                     return (
                                                         <SelectItem

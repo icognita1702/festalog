@@ -133,9 +133,16 @@ export default function NovoPedidoPage() {
         }
     }, [tipoFrete, freteCustomizado])
 
-    function getDisponivel(produtoId: string): number {
+    function getDisponivel(produtoId: string, quantidadeTotalFallback?: number): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
-        return item ? Number(item.quantidade_disponivel) : 0
+        if (item) {
+            return Number(item.quantidade_disponivel)
+        }
+        if (typeof quantidadeTotalFallback === 'number') {
+            return quantidadeTotalFallback
+        }
+        const produto = produtos.find(p => p.id === produtoId)
+        return produto ? produto.quantidade_total : 0
     }
 
     function addToCarrinho() {
@@ -144,7 +151,7 @@ export default function NovoPedidoPage() {
         const produto = produtos.find(p => p.id === produtoSelecionado)
         if (!produto) return
 
-        const disponivel = getDisponivel(produtoSelecionado)
+        const disponivel = getDisponivel(produtoSelecionado, produto.quantidade_total)
 
         // Verifica se já está no carrinho
         const existingIndex = carrinho.findIndex(item => item.produto.id === produtoSelecionado)
@@ -539,7 +546,7 @@ export default function NovoPedidoPage() {
                                         </SelectTrigger>
                                         <SelectContent>
                                             {produtos.map((produto) => {
-                                                const disp = getDisponivel(produto.id)
+                                                const disp = getDisponivel(produto.id, produto.quantidade_total)
                                                 return (
                                                     <SelectItem
                                                         key={produto.id}

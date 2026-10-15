@@ -14,17 +14,22 @@ type PhotonFeature = {
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q')
 
-  if (!query || query.length < 3) {
+  if (!query || query.trim().length < 3) {
     return NextResponse.json({ suggestions: [] })
   }
 
   try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=pt`
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&limit=5&lang=pt`
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'FestaLog/1.0',
       },
+      signal: AbortSignal.timeout(3500),
     })
+
+    if (!response.ok) {
+      return NextResponse.json({ suggestions: [] })
+    }
 
     const data = (await response.json()) as { features?: PhotonFeature[] }
     const suggestions =

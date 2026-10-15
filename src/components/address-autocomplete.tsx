@@ -27,17 +27,28 @@ export function AddressAutocomplete({
     const [suggestions, setSuggestions] = useState<string[]>([])
     const [showSuggestions, setShowSuggestions] = useState(false)
     const debounceRef = useRef<NodeJS.Timeout | null>(null)
+    const abortControllerRef = useRef<AbortController | null>(null)
 
     const fetchSuggestions = useCallback(async (input: string) => {
-        if (!input || input.length < 3) {
+        const trimmed = input.trim()
+        if (!trimmed || trimmed.length < 3) {
             setSuggestions([])
+            setIsLoading(false)
             return
         }
+
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+        }
+        const controller = new AbortController()
+        abortControllerRef.current = controller
 
         setIsLoading(true)
 
         try {
-            const response = await fetch(`/api/address-autocomplete?q=${encodeURIComponent(input)}`)
+            const response = await fetch(`/api/address-autocomplete?q=${encodeURIComponent(trimmed)}`, {
+                signal: controller.signal,
+            })
             const data = await response.json()
 
             if (data.suggestions && data.suggestions.length > 0) {
@@ -47,10 +58,15 @@ export function AddressAutocomplete({
                 setSuggestions([])
             }
         } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                return
+            }
             console.error('Erro ao buscar sugestões:', error)
             setSuggestions([])
         } finally {
-            setIsLoading(false)
+            if (abortControllerRef.current === controller) {
+                setIsLoading(false)
+            }
         }
     }, [])
 
@@ -68,13 +84,19 @@ export function AddressAutocomplete({
     }
 
     const handleSelect = (address: string) => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        if (abortControllerRef.current) abortControllerRef.current.abort()
         onChange(address)
         setSuggestions([])
         setShowSuggestions(false)
+        setIsLoading(false)
     }
 
     const handleBlur = () => {
-        setTimeout(() => setShowSuggestions(false), 200)
+        setTimeout(() => {
+            setShowSuggestions(false)
+            setIsLoading(false)
+        }, 200)
     }
 
     const handleFocus = () => {
@@ -84,6 +106,7 @@ export function AddressAutocomplete({
     useEffect(() => {
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current)
+            if (abortControllerRef.current) abortControllerRef.current.abort()
         }
     }, [])
 

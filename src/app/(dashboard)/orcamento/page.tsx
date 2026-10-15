@@ -137,9 +137,16 @@ export default function OrcamentoPage() {
         calcularFrete()
     }, [clienteId, novoClienteEndereco, modoNovoCliente, clientes, freightConfig])
 
-    function getDisponivel(produtoId: string): number {
+    function getDisponivel(produtoId: string, quantidadeTotalFallback?: number): number {
         const item = disponibilidade.find(d => d.produto_id === produtoId)
-        return item ? Number(item.quantidade_disponivel) : 0
+        if (item) {
+            return Number(item.quantidade_disponivel)
+        }
+        if (typeof quantidadeTotalFallback === 'number') {
+            return quantidadeTotalFallback
+        }
+        const produto = produtos.find(p => p.id === produtoId)
+        return produto ? produto.quantidade_total : 0
     }
 
     function addItem() {
@@ -148,7 +155,7 @@ export default function OrcamentoPage() {
         const produto = produtos.find(p => p.id === produtoSelecionado)
         if (!produto) return
 
-        const disponivel = getDisponivel(produtoSelecionado)
+        const disponivel = getDisponivel(produtoSelecionado, produto.quantidade_total)
         const existingIndex = itens.findIndex(item => item.produto.id === produtoSelecionado)
 
         if (existingIndex >= 0) {
@@ -431,7 +438,7 @@ export default function OrcamentoPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {produtos.map((produto) => {
-                                            const disp = getDisponivel(produto.id)
+                                            const disp = getDisponivel(produto.id, produto.quantidade_total)
                                             const dispLabel = dataEvento ? ` (${disp} disp.)` : ''
                                             return (
                                                 <SelectItem
